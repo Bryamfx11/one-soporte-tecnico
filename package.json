@@ -1,0 +1,16 @@
+{
+  "name": "plan-mejora-one",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plataforma de soporte técnico - Optimización del proceso en ONE Telecomunicaciones S.A.S.",
+  "scripts": {
+    "install:all": "set npm_config_allow_scripts= && cd server && npm install && cd ../client && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev": "concurrently \"cd server && npm run dev\" \"cd client && npm run dev\"",
+    "build": "cd client && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
