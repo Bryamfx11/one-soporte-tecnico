@@ -162,6 +162,6 @@ Este proyecto está bajo la licencia [MIT](LICENSE).
 <div align="center">
 
 *Desarrollado como parte del Informe Final de Plan de Mejora Nivel 3*
-*ONE Telecomunicaciones S.A.S. — Tunja, Boyacá / Bogotá D.C.*
+*ONE Telecomunicaciones S.A.S. — Bogotá D.C.*
 
 </div>
