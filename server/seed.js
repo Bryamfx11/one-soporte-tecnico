@@ -1,4 +1,10 @@
 import { db } from './db.js';
+import bcrypt from 'bcryptjs';
+
+const USUARIOS = [
+  { nombre: 'Administrador', email: 'admin@one.com', password: 'admin123', rol: 'admin' },
+  { nombre: 'Bryam Villalba', email: 'bryam@one.com', password: 'tecnico123', rol: 'tecnico' }
+];
 
 const TECNICOS = [
   { nombre: 'Yudy Garcia', rol: 'Administradora General / Tutor' },
@@ -254,12 +260,18 @@ const NOW = Date.now();
 const H = 3600000;
 
 function nextTicket() {
-  const n = db.prepare("SELECT COUNT(*) AS c FROM incidencias").get().c;
-  const s = db.prepare("SELECT COALESCE(MAX(id),0) AS m FROM incidencias").get().m;
-  return String(Math.max(n, s) + 1).padStart(4, '0');
+  const maxNum = db.prepare("SELECT COALESCE(MAX(CAST(SUBSTR(numero_ticket, 5) AS INTEGER)), 0) AS m FROM incidencias").get().m;
+  return String(maxNum + 1).padStart(4, '0');
 }
 
 export function seedIfEmpty() {
+  if (db.prepare('SELECT COUNT(*) AS c FROM usuarios').get().c === 0) {
+    const insUsu = db.prepare('INSERT INTO usuarios (nombre, email, password_hash, rol, creado_en) VALUES (?, ?, ?, ?, ?)');
+    for (const u of USUARIOS) {
+      insUsu.run(u.nombre, u.email, bcrypt.hashSync(u.password, 10), u.rol, Date.now());
+    }
+  }
+
   if (db.prepare('SELECT COUNT(*) AS c FROM tecnicos').get().c > 0) return;
 
   const insTec = db.prepare('INSERT INTO tecnicos (nombre, rol) VALUES (?, ?)');

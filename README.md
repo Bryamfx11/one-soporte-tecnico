@@ -39,6 +39,7 @@ El proyecto implementa los tres objetivos específicos del plan:
 
 ## ✨ Funcionalidades
 
+- **Autenticación**: login con JWT, roles (admin/técnico) y rutas protegidas
 - **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico
 - **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio, flujo de ciclo de vida
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
@@ -47,6 +48,7 @@ El proyecto implementa los tres objetivos específicos del plan:
   - Registro de causa raíz (Diagrama de Ishikawa)
 - **Base de conocimiento**: Protocolos de diagnóstico consultables para capacitar nuevo personal
 - **Indicadores del Plan de Mejora**: Métricas alineadas a cada objetivo específico
+- **Responsive**: menú lateral colapsable en dispositivos móviles
 
 ---
 
@@ -57,6 +59,8 @@ El proyecto implementa los tres objetivos específicos del plan:
 | Frontend | React 19 + Vite 6 + Recharts + React Router 7 |
 | Backend | Node.js ≥ 22.5 + Express 4 |
 | Base de datos | SQLite 3 (`node:sqlite` built-in, sin dependencias nativas) |
+| Autenticación | JWT (`jsonwebtoken`) + `bcryptjs` |
+| Testing | `node:test` + `supertest` (API) · Vitest + Testing Library (cliente) |
 | Despliegue | Node.js SPA + API estática |
 
 ---
@@ -81,8 +85,27 @@ npm run dev
 - **API:** http://localhost:4000
 - **Cliente:** http://localhost:5173 (proxy `/api` hacia la API)
 
+### 🔐 Credenciales de demostración
+
+| Rol | Email | Contraseña |
+|---|---|---|
+| Administrador | `admin@one.com` | `admin123` |
+| Técnico | `bryam@one.com` | `tecnico123` |
+
+> En producción defina la variable de entorno `JWT_SECRET` con un valor seguro.
+
 > La primera vez se crea `server/one.db` automáticamente con datos de ejemplo
 > (5 tipos de falla FTTH, 24 incidencias, checklists de diagnóstico, categorías Ishikawa).
+
+---
+
+## 🧪 Pruebas
+
+```bash
+npm test              # Ejecuta pruebas de API y cliente
+npm run test:server   # API + validaciones (node:test + supertest)
+npm run test:client   # Componentes y utilidades (Vitest + Testing Library)
+```
 
 ---
 
@@ -102,17 +125,23 @@ one-soporte-tecnico/
 ├── docs/
 │   └── Informe_Plan_de_Mejora_N3.pdf   # Informe final del proyecto
 ├── server/                              # API Express
-│   ├── index.js                         # Arranque y montaje de rutas
+│   ├── index.js                         # Arranque del servidor
+│   ├── app.js                           # Configuración de la app Express
 │   ├── db.js                            # Esquema de base de datos (SQLite)
+│   ├── auth.js                          # JWT y middleware de autenticación
+│   ├── validate.js                      # Validación de peticiones
 │   ├── seed.js                          # Datos de ejemplo (checklists FTTH, causas)
-│   └── routes/
-│       ├── incidents.js                 # CRUD incidencias + diagnóstico guiado
-│       ├── checklists.js                # Base de conocimiento y causas raíz
-│       ├── metrics.js                   # Indicadores del dashboard
-│       └── tecnicos.js
+│   ├── routes/
+│   │   ├── auth.js                      # Login, registro y perfil
+│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado
+│   │   ├── checklists.js                # Base de conocimiento y causas raíz
+│   │   ├── metrics.js                   # Indicadores del dashboard
+│   │   └── tecnicos.js
+│   └── test/                            # Pruebas de API y validación
 └── client/                              # React (Vite)
     └── src/
         ├── pages/
+        │   ├── Login.jsx                # Inicio de sesión
         │   ├── Dashboard.jsx            # KPIs y gráficas
         │   ├── Incidencias.jsx          # Lista de incidencias con filtros
         │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico guiado
@@ -120,9 +149,11 @@ one-soporte-tecnico/
         │   ├── Conocimiento.jsx         # Base de conocimiento
         │   └── Indicadores.jsx          # Métricas del plan de mejora
         ├── components/
-        │   ├── Layout.jsx               # Sidebar y navegación
+        │   ├── Layout.jsx               # Sidebar, topbar móvil y navegación
+        │   ├── RequireAuth.jsx          # Guard de rutas protegidas
         │   └── ui.jsx                   # Componentes reutilizables
-        └── api.js                       # Cliente HTTP
+        ├── test/                        # Pruebas de componentes
+        └── api.js                       # Cliente HTTP con manejo de token
 ```
 
 ---

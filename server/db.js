@@ -5,11 +5,22 @@ import { seedIfEmpty } from './seed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const db = new DatabaseSync(path.join(__dirname, 'one.db'));
+const DB_PATH = process.env.DB_PATH ?? path.join(__dirname, 'one.db');
+
+export const db = new DatabaseSync(DB_PATH);
 
 db.exec(`
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
+
+CREATE TABLE IF NOT EXISTS usuarios (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  rol TEXT NOT NULL DEFAULT 'tecnico',
+  creado_en INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS tecnicos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +84,10 @@ CREATE TABLE IF NOT EXISTS respuestas_diagnostico (
 
 CREATE INDEX IF NOT EXISTS idx_incidentes_tipo ON incidencias(tipo_falla_id);
 CREATE INDEX IF NOT EXISTS idx_incidentes_estado ON incidencias(estado);
+CREATE INDEX IF NOT EXISTS idx_incidentes_barrio ON incidencias(barrio);
+CREATE INDEX IF NOT EXISTS idx_incidentes_cliente ON incidencias(cliente);
 CREATE INDEX IF NOT EXISTS idx_respuestas_inc ON respuestas_diagnostico(incidencia_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_incidentes_ticket ON incidencias(numero_ticket);
 `);
 
 seedIfEmpty();
