@@ -51,7 +51,7 @@ describe('Login', () => {
         <Login />
       </MemoryRouter>
     );
-    expect(screen.getByText('ONE Soporte Técnico')).toBeInTheDocument();
+    expect(screen.getByText('ONETec')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('usuario@one.com')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /iniciar sesión/i })).toBeInTheDocument();
   });

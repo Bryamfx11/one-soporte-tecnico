@@ -34,8 +34,8 @@ export default function Login() {
       <form className="card login-card" onSubmit={submit}>
         <div className="login-brand">
           <div className="brand-logo"><Wifi size={24} /></div>
-          <h1>ONE Soporte Técnico</h1>
-          <p>Plataforma de gestión de soporte · Plan de Mejora N3</p>
+          <h1>ONETec</h1>
+          <p>Plataforma de Soporte Técnico · ONE Telecomunicaciones</p>
         </div>
 
         <label>Email

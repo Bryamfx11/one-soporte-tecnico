@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🔧 ONE Soporte Técnico
+# 🔧 ONETec
 
-### Plataforma de Gestión de Soporte Técnico
+### Plataforma de Soporte Técnico
 
 ![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.5-339933?logo=node.js&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)

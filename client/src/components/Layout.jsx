@@ -28,7 +28,7 @@ export default function Layout() {
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
         <div className="topbar-brand">
-          <Wifi size={16} /> ONE Soporte
+          <Wifi size={16} /> ONETec
         </div>
         <button className="icon-btn logout-btn" onClick={logout} aria-label="Cerrar sesión">
           <LogOut size={18} />
@@ -39,7 +39,7 @@ export default function Layout() {
         <div className="brand">
           <div className="brand-logo"><Workflow size={22} /></div>
           <div>
-            <div className="brand-name">ONE Soporte</div>
+            <div className="brand-name">ONETec</div>
             <div className="brand-sub">Plan de Mejora N3</div>
           </div>
         </div>
