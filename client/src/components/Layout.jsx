@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings } from 'lucide-react';
 import { getUser, setToken, setUser } from '../api.js';
 
 const THEME_KEY = 'one_theme';
@@ -9,7 +9,8 @@ const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/incidencias', label: 'Incidencias', icon: ListTodo },
   { to: '/conocimiento', label: 'Base de conocimiento', icon: BookOpen },
-  { to: '/indicadores', label: 'Indicadores', icon: BarChart3 }
+  { to: '/indicadores', label: 'Indicadores', icon: BarChart3 },
+  { to: '/ajustes', label: 'Ajustes', icon: Settings }
 ];
 
 export default function Layout() {
@@ -102,6 +103,9 @@ export default function Layout() {
           </Link>
           <button className="theme-toggle" onClick={toggleTheme}>
             {dark ? <Sun size={16} /> : <Moon size={16} />} Tema {dark ? 'claro' : 'oscuro'}
+          </button>
+          <button className="btn btn-ghost btn-block" onClick={logout}>
+            <LogOut size={16} /> Cerrar sesión
           </button>
           <div className="meta">
             <Wifi size={14} /> FTTH · Tunja / Bogotá

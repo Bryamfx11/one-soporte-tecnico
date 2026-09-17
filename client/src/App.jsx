@@ -8,6 +8,7 @@ import IncidenciaDetail from './pages/IncidenciaDetail.jsx';
 import NuevaIncidencia from './pages/NuevaIncidencia.jsx';
 import Conocimiento from './pages/Conocimiento.jsx';
 import Indicadores from './pages/Indicadores.jsx';
+import Ajustes from './pages/Ajustes.jsx';
 import NotFound from './pages/NotFound.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import { getToken } from './api.js';
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/incidencias/:id" element={<IncidenciaDetail />} />
         <Route path="/conocimiento" element={<Conocimiento />} />
         <Route path="/indicadores" element={<Indicadores />} />
+        <Route path="/ajustes" element={<Ajustes />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
