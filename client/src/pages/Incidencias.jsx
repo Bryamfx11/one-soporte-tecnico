@@ -11,25 +11,34 @@ export default function Incidencias() {
   const [tipo, setTipo] = useState('');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
     return () => clearTimeout(t);
   }, [q]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [estado, tipo, debouncedQ, pageSize]);
+
   const params = new URLSearchParams();
   if (estado) params.set('estado', estado);
   if (tipo) params.set('tipo', tipo);
   if (debouncedQ) params.set('q', debouncedQ);
+  params.set('limit', pageSize);
+  params.set('offset', (page - 1) * pageSize);
 
   const { data: incidencias, loading, error, reload } = useApi(
-    () => api.get(`/incidents${params.toString() ? '?' + params.toString() : ''}`),
-    [estado, tipo, debouncedQ]
+    () => api.get(`/incidents?${params.toString()}`),
+    [estado, tipo, debouncedQ, page, pageSize]
   );
   const { data: tipos } = useApi(() => api.get('/checklists/tipos'), []);
 
   const items = incidencias?.items ?? [];
   const total = incidencias?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   function limpiarFiltros() {
     setEstado('');
@@ -118,6 +127,17 @@ export default function Incidencias() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && !error && total > 0 && (
+        <div className="pagination" role="navigation" aria-label="Paginación">
+          <button className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹ Anterior</button>
+          <span className="pagination-info">Página {page} de {totalPages} · {total} registros</span>
+          <button className="btn btn-ghost" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente ›</button>
+          <select className="pagination-size" aria-label="Registros por página" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+            {[10, 25, 50, 100].map((s) => <option key={s} value={s}>{s} por página</option>)}
+          </select>
         </div>
       )}
     </div>

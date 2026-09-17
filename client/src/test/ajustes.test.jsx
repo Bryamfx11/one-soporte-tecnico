@@ -1,8 +1,9 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '../components/Toast.jsx';
 import Ajustes from '../pages/Ajustes.jsx';
+import App from '../App.jsx';
 
 function renderizarAjustes() {
   return render(
@@ -13,6 +14,10 @@ function renderizarAjustes() {
     </MemoryRouter>
   );
 }
+
+beforeEach(() => {
+  localStorage.clear();
+});
 
 describe('Ajustes', () => {
   test('renderiza la página sin errores', () => {
@@ -25,5 +30,17 @@ describe('Ajustes', () => {
     expect(screen.getByLabelText('Tasa de resolución mínima')).toHaveValue(70);
     expect(screen.getByLabelText('Tiempo objetivo de diagnóstico')).toHaveValue(24);
     expect(screen.getByLabelText('Umbral de escalamiento')).toHaveValue(26);
+  });
+});
+
+describe('Ajustes dentro de la app completa', () => {
+  test('abre /ajustes con sesión sin lanzar errores', () => {
+    localStorage.setItem('one_soporte_token', 'token-test');
+    render(
+      <MemoryRouter initialEntries={['/ajustes']}>
+        <App />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('heading', { name: /ajustes/i })).toBeInTheDocument();
   });
 });

@@ -228,6 +228,11 @@ tr.clickable:hover td { background: var(--hover); }
 .sub { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
 .tipo-cell { display: inline-flex; align-items: center; gap: 6px; }
 
+/* ---------- Pagination ---------- */
+.pagination { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.pagination-info { font-size: 13px; color: var(--muted); }
+.pagination-size { margin-left: auto; min-width: 0; padding: 8px 10px; }
+
 /* ---------- Forms ---------- */
 .form { display: flex; flex-direction: column; gap: 12px; }
 .form-title { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 0 0; }
