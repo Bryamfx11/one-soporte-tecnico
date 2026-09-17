@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   SlidersHorizontal, Save, RotateCcw, LogOut, User as UserIcon,
@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import { getUser, setToken, setUser } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
+import { useTheme } from '../hooks/useTheme.js';
 
-export const THEME_KEY = 'one_theme';
 const CRITERIOS_KEY = 'one_criterios';
 
 const CRITERIOS_DEFAULT = {
@@ -32,30 +32,11 @@ function getCriterios() {
   }
 }
 
-export function getCriteriosGuardados() {
-  return getCriterios();
-}
-
 export default function Ajustes() {
   const navigate = useNavigate();
   const showToast = useToast();
   const user = getUser();
-
-  const [dark, setDark] = useState(() => {
-    try {
-      return localStorage.getItem(THEME_KEY) === 'dark';
-    } catch {
-      return false;
-    }
-  });
-  const [form, setForm] = useState(getCriterios);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    try {
-      localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
-    } catch {}
-  }, [dark]);
+  const { dark, toggle: toggleTheme } = useTheme();
 
   function onNum(key, e) {
     const v = Number(e.target.value);
@@ -96,7 +77,7 @@ export default function Ajustes() {
       <section className="card">
         <h3><SlidersHorizontal size={16} /> Apariencia</h3>
         <div className="field-row">
-          <button type="button" className="theme-toggle" onClick={() => setDark((d) => !d)} aria-pressed={dark}>
+          <button type="button" className="theme-toggle" onClick={toggleTheme} aria-pressed={dark}>
             {dark ? <SunIcon size={16} /> : <MoonIcon size={16} />} Tema {dark ? 'claro' : 'oscuro'}
           </button>
           <span className="soft">Se aplica en toda la plataforma y queda guardado.</span>

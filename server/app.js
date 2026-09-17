@@ -4,7 +4,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import './db.js';
 import { requireAuth } from './auth.js';
-import { rateLimit, securityHeaders } from './security.js';
+import { rateLimit, securityHeaders, corsMiddleware } from './security.js';
 import { authRouter } from './routes/auth.js';
 import { incidentsRouter } from './routes/incidents.js';
 import { checklistsRouter } from './routes/checklists.js';
@@ -21,17 +21,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,h
   .map((o) => o.trim())
   .filter(Boolean);
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Vary', 'Origin');
-  }
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
+app.use(corsMiddleware(ALLOWED_ORIGINS));
 
 app.use(securityHeaders);
 

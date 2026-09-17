@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2
 } from 'lucide-react';
 import { api, getUser, useApi } from '../api.js';
-import { Badge, ConfirmDialog, Skeleton, SkeletonText } from '../components/ui.jsx';
+import { Badge, ConfirmDialog, Modal, Skeleton, SkeletonText } from '../components/ui.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiempo } from '../utils.js';
 
@@ -359,57 +359,5 @@ function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
         </div>
       )}
     </Modal>
-  );
-}
-
-function Modal({ title, subtitle, onClose, footer, children }) {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const getFocusables = () =>
-      Array.from(el.querySelectorAll('button, [href], input, select, textarea:not([disabled])'));
-    const first = getFocusables()[0];
-    if (first) first.focus();
-
-    function onKey(e) {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-        return;
-      }
-      if (e.key === 'Tab') {
-        const nodes = getFocusables();
-        if (nodes.length === 0) { e.preventDefault(); return; }
-        const firstEl = nodes[0];
-        const lastEl = nodes[nodes.length - 1];
-        if (e.shiftKey && document.activeElement === firstEl) {
-          e.preventDefault();
-          lastEl.focus();
-        } else if (!e.shiftKey && document.activeElement === lastEl) {
-          e.preventDefault();
-          firstEl.focus();
-        }
-      }
-    }
-    el.addEventListener('keydown', onKey);
-    return () => el.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div ref={ref} className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <div>
-            <h3>{title}</h3>
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
-        </div>
-        <div className="modal-body">{children}</div>
-        {footer && <div className="modal-foot">{footer}</div>}
-      </div>
-    </div>
   );
 }

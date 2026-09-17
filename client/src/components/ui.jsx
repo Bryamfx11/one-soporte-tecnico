@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { useFocusTrap } from '../hooks/useFocusTrap.js';
 
 export function Badge({ children, color = '#64748b' }) {
   return (
@@ -61,58 +62,46 @@ export function SkeletonTable({ rows = 5, cols = 6 }) {
   );
 }
 
-export function ConfirmDialog({ title, message, confirmLabel = 'Eliminar', cancelLabel = 'Cancelar', onCancel, onConfirm, busy }) {
+export function Modal({ title, subtitle, onClose, footer, children, role = 'dialog', className = '', focusables }) {
   const ref = useRef(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const focusables = () => Array.from(el.querySelectorAll('button:not([disabled])'));
-    const first = focusables()[0];
-    if (first) first.focus();
-
-    function onKey(e) {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onCancel();
-        return;
-      }
-      if (e.key === 'Tab') {
-        const nodes = focusables();
-        if (nodes.length === 0) { e.preventDefault(); return; }
-        const firstEl = nodes[0];
-        const lastEl = nodes[nodes.length - 1];
-        if (e.shiftKey && document.activeElement === firstEl) {
-          e.preventDefault();
-          lastEl.focus();
-        } else if (!e.shiftKey && document.activeElement === lastEl) {
-          e.preventDefault();
-          firstEl.focus();
-        }
-      }
-    }
-    el.addEventListener('keydown', onKey);
-    return () => el.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  useFocusTrap(ref, onClose, focusables);
 
   return (
-    <div className="overlay" onClick={onCancel}>
-      <div ref={ref} className="modal modal-confirm" role="alertdialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+    <div className="overlay" onClick={onClose}>
+      <div ref={ref} className={`modal ${className}`.trim()} role={role} aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h3>{title}</h3>
-          <button className="icon-btn" onClick={onCancel} aria-label="Cerrar"><X size={18} /></button>
-        </div>
-        <div className="modal-body">
-          <div className="confirm-box">
-            <div className="confirm-icon"><AlertTriangle size={28} /></div>
-            <p>{message}</p>
+          <div>
+            <h3>{title}</h3>
+            {subtitle && <p>{subtitle}</p>}
           </div>
+          <button className="icon-btn" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
         </div>
-        <div className="modal-foot">
-          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</button>
-          <button className="btn btn-danger" onClick={onConfirm} disabled={busy}>{busy ? 'Eliminando…' : confirmLabel}</button>
-        </div>
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot">{footer}</div>}
       </div>
     </div>
+  );
+}
+
+export function ConfirmDialog({ title, message, confirmLabel = 'Eliminar', cancelLabel = 'Cancelar', onCancel, onConfirm, busy }) {
+  return (
+    <Modal
+      title={title}
+      onClose={onCancel}
+      role="alertdialog"
+      className="modal-confirm"
+      focusables="button:not([disabled])"
+      footer={
+        <>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</button>
+          <button className="btn btn-danger" onClick={onConfirm} disabled={busy}>{busy ? 'Eliminando…' : confirmLabel}</button>
+        </>
+      }
+    >
+      <div className="confirm-box">
+        <div className="confirm-icon"><AlertTriangle size={28} /></div>
+        <p>{message}</p>
+      </div>
+    </Modal>
   );
 }

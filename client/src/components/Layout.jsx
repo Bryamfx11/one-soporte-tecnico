@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings } from 'lucide-react';
 import { getUser, setToken, setUser } from '../api.js';
-
-const THEME_KEY = 'one_theme';
+import { useTheme } from '../hooks/useTheme.js';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -15,26 +14,9 @@ const NAV = [
 
 export default function Layout() {
   const [open, setOpen] = useState(false);
-  const [dark, setDark] = useState(() => {
-    try {
-      return localStorage.getItem(THEME_KEY) === 'dark';
-    } catch {
-      return false;
-    }
-  });
+  const { dark, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const user = getUser();
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    try {
-      localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
-    } catch {}
-  }, [dark]);
-
-  function toggleTheme() {
-    setDark((d) => !d);
-  }
 
   function logout() {
     setToken(null);

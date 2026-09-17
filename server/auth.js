@@ -44,5 +44,3 @@ export function requireAdmin(req, res, next) {
   }
   next();
 }
-
-export default SECRET;

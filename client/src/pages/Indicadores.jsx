@@ -5,7 +5,7 @@ import {
 import { Download, Printer } from 'lucide-react';
 import { api, useApi } from '../api.js';
 import { Skeleton, SkeletonText, Empty } from '../components/ui.jsx';
-import { fmtTiempo, downloadCSV } from '../utils.js';
+import { fmtTiempo, downloadCSV, pctResolucion, estadoPieData } from '../utils.js';
 
 const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#64748b'];
 const GRID = 'var(--border)';
@@ -40,13 +40,8 @@ export default function Indicadores() {
   const porTecnico = data.por_tecnico ?? [];
   const porDia = data.por_dia ?? [];
 
-  const tasa = total ? Math.round((resueltas / total) * 100) : 0;
-  const pieData = [
-    { name: 'Resueltas', value: resueltas },
-    { name: 'En diagnóstico', value: data.en_diagnostico ?? 0 },
-    { name: 'Escaladas', value: data.escaladas ?? 0 },
-    { name: 'Nuevas', value: data.nueva ?? 0 }
-  ].filter((d) => d.value > 0);
+  const tasa = pctResolucion(total, resueltas);
+  const pieData = estadoPieData(data);
 
   function exportCSV() {
     const rows = [
@@ -155,7 +150,7 @@ export default function Indicadores() {
                 <thead><tr><th>Técnico</th><th>Casos</th><th>Resueltos</th><th>%</th><th>Tiempo prom.</th></tr></thead>
                 <tbody>
                   {porTecnico.map((t) => {
-                    const pct = t.total ? Math.round((t.resueltas / t.total) * 100) : 0;
+                    const pct = pctResolucion(t.total, t.resueltas);
                     return (
                       <tr key={t.nombre}>
                         <td><strong>{t.nombre}</strong></td>

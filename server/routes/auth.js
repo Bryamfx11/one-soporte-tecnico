@@ -6,6 +6,8 @@ import { requireAuth, requireAdmin, signToken } from '../auth.js';
 export const authRouter = express.Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Hash fijo para igualar el tiempo de bcrypt cuando el email no existe
+const DUMMY_PASSWORD_HASH = '$2b$10$bZ7Mz2OPnqMeBTOBYvVn4ebdRhYCZTgkvEvIMi/DpTr96u/ClVMju';
 
 function asyncHandler(fn) {
   return (req, res) => {
@@ -16,11 +18,23 @@ function asyncHandler(fn) {
   };
 }
 
+function normalizarEmail(email) {
+  return String(email).toLowerCase().trim();
+}
+
+function emailValido(email) {
+  return typeof email === 'string' && EMAIL_RE.test(email);
+}
+
+function passwordValida(password) {
+  return typeof password === 'string' && password.length >= 6;
+}
+
 function validateLogin(body) {
   const errors = [];
   if (!body.email || typeof body.email !== 'string') errors.push('email es obligatorio');
   else if (!EMAIL_RE.test(body.email)) errors.push('email no válido');
-  if (!body.password || typeof body.password !== 'string' || body.password.length < 6) {
+  if (!passwordValida(body.password)) {
     errors.push('password es obligatorio (mínimo 6 caracteres)');
   }
   return errors;
@@ -32,8 +46,8 @@ function validateRegister(body) {
     errors.push('nombre es obligatorio (mínimo 2 caracteres)');
   }
   if (!body.email || typeof body.email !== 'string') errors.push('email es obligatorio');
-  else if (!EMAIL_RE.test(body.email)) errors.push('email no válido');
-  if (!body.password || typeof body.password !== 'string' || body.password.length < 6) {
+  else if (!emailValido(body.email)) errors.push('email no válido');
+  if (!passwordValida(body.password)) {
     errors.push('password es obligatorio (mínimo 6 caracteres)');
   }
   return errors;
@@ -43,9 +57,8 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   const errors = validateLogin(req.body ?? {});
   if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
 
-  const user = db.prepare('SELECT * FROM usuarios WHERE email = ?').get(String(req.body.email).toLowerCase().trim());
-  const dummyHash = '$2b$10$bZ7Mz2OPnqMeBTOBYvVn4ebdRhYCZTgkvEvIMi/DpTr96u/ClVMju';
-  const ok = user ? await bcrypt.compare(req.body.password, user.password_hash) : await bcrypt.compare(req.body.password, dummyHash);
+  const user = db.prepare('SELECT * FROM usuarios WHERE email = ?').get(normalizarEmail(req.body.email));
+  const ok = user ? await bcrypt.compare(req.body.password, user.password_hash) : await bcrypt.compare(req.body.password, DUMMY_PASSWORD_HASH);
   if (!user || !ok) {
     return res.status(401).json({ error: 'Credenciales incorrectas' });
   }
@@ -62,7 +75,7 @@ authRouter.post('/register', requireAuth, requireAdmin, asyncHandler(async (req,
   const errors = validateRegister(req.body ?? {});
   if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
 
-  const email = String(req.body.email).toLowerCase().trim();
+  const email = normalizarEmail(req.body.email);
   const existe = db.prepare('SELECT 1 FROM usuarios WHERE email = ?').get(email);
   if (existe) return res.status(409).json({ error: 'El email ya está registrado' });
 

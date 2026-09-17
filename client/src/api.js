@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const BASE = '/api';
 const TOKEN_KEY = 'one_soporte_token';
+const USER_KEY = 'one_soporte_user';
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -14,15 +15,15 @@ export function setToken(token) {
 
 export function getUser() {
   try {
-    return JSON.parse(localStorage.getItem('one_soporte_user') ?? 'null');
+    return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null');
   } catch {
     return null;
   }
 }
 
 export function setUser(user) {
-  if (user) localStorage.setItem('one_soporte_user', JSON.stringify(user));
-  else localStorage.removeItem('one_soporte_user');
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+  else localStorage.removeItem(USER_KEY);
 }
 
 async function request(path, options = {}) {
@@ -62,20 +63,7 @@ export function useApi(fn, deps = []) {
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
 
-  useEffect(() => {
-    let active = true;
-    mountedRef.current = true;
-    setLoading(true);
-    setError(null);
-    fn()
-      .then((d) => { if (active) setData(d); })
-      .catch((e) => { if (active) setError(e.message); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; mountedRef.current = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-
-  const reload = useCallback(() => {
+  const run = useCallback(() => {
     if (!mountedRef.current) return Promise.resolve(data);
     setLoading(true);
     setError(null);
@@ -86,5 +74,12 @@ export function useApi(fn, deps = []) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  return { data, loading, error, reload, setData };
+  useEffect(() => {
+    mountedRef.current = true;
+    run();
+    return () => { mountedRef.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return { data, loading, error, reload: run, setData };
 }

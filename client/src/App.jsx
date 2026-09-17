@@ -22,18 +22,18 @@ export default function App() {
   return (
     <ToastProvider>
       <Routes>
-      <Route path="/login" element={<LoginRoute />} />
-      <Route element={<RequireAuth><Layout /></RequireAuth>}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/incidencias" element={<Incidencias />} />
-        <Route path="/incidencias/nueva" element={<NuevaIncidencia />} />
-        <Route path="/incidencias/:id" element={<IncidenciaDetail />} />
-        <Route path="/conocimiento" element={<Conocimiento />} />
-        <Route path="/indicadores" element={<Indicadores />} />
-        <Route path="/ajustes" element={<Ajustes />} />
-        <Route path="*" element={<NotFound />} />
-      </Route>
-    </Routes>
+        <Route path="/login" element={<LoginRoute />} />
+        <Route element={<RequireAuth><Layout /></RequireAuth>}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/incidencias" element={<Incidencias />} />
+          <Route path="/incidencias/nueva" element={<NuevaIncidencia />} />
+          <Route path="/incidencias/:id" element={<IncidenciaDetail />} />
+          <Route path="/conocimiento" element={<Conocimiento />} />
+          <Route path="/indicadores" element={<Indicadores />} />
+          <Route path="/ajustes" element={<Ajustes />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
     </ToastProvider>
   );
 }

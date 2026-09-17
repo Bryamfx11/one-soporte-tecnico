@@ -39,6 +39,19 @@ export function fmtTiempo(ms) {
   return `${(horas / 24).toFixed(1)} días`;
 }
 
+export function pctResolucion(total, resueltas) {
+  return total ? Math.round((resueltas / total) * 100) : 0;
+}
+
+export function estadoPieData(data) {
+  return [
+    { name: 'Resueltas', value: data.resueltas ?? 0 },
+    { name: 'En diagnóstico', value: data.en_diagnostico ?? 0 },
+    { name: 'Escaladas', value: data.escaladas ?? 0 },
+    { name: 'Nuevas', value: data.nueva ?? 0 }
+  ].filter((d) => d.value > 0);
+}
+
 function csvCell(value) {
   const s = value == null ? '' : String(value);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
