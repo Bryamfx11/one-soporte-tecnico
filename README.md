@@ -39,10 +39,10 @@ El proyecto implementa los tres objetivos específicos del plan:
 
 ## ✨ Funcionalidades
 
-- **Autenticación**: login con JWT, roles (admin/técnico), rutas protegidas y registro exclusivo de administradores
-- **Seguridad**: rate limiting por ruta, cabeceras de seguridad (CSP, etc.), CORS restringido por orígenes permitidos y contraseñas cifradas con bcrypt
+- **Autenticación**: login con JWT, roles (admin/técnico), rutas protegidas y registro exclusivo de administradores; verificación de contraseña con tiempos constantes (evita enumerar qué correos están registrados)
+- **Seguridad**: secreto JWT aleatorio por arranque cuando no viene del entorno (en desarrollo) y obligatorio en producción, rate limiting por ruta, cabeceras de seguridad (CSP, etc.), CORS restringido por orígenes permitidos y contraseñas cifradas con bcrypt
 - **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico
-- **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio, flujo de ciclo de vida
+- **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio, flujo de ciclo de vida; número de ticket con reintento ante colisiones y casos cerrados (resuelta/escalada) que no se reabren por API
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
   - Medición de campo (nivel óptico dBm, velocidad Mbps, pérdida de paquetes)
   - Referencia esperada por cada paso
@@ -101,7 +101,7 @@ npm run dev
 
 | Variable | Descripción |
 |---|---|
-| `JWT_SECRET` | Obligatoria en producción; la API no arranca si falta |
+| `JWT_SECRET` | Obligatoria en producción; la API no arranca si falta. Si no se define en desarrollo, se genera un secreto aleatorio por arranque (los tokens existentes quedan inválidos y se muestra un aviso) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales del administrador que crea el seed |
 | `ALLOWED_ORIGINS` | Orígenes de CORS permitidos (separados por coma) |
 
