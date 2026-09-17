@@ -151,6 +151,38 @@ export function validateFinalizar(body) {
   return errors;
 }
 
+export function validateTecnicoUpdate(body) {
+  const errors = [];
+  const allowed = ['nombre', 'rol'];
+
+  if (!allowed.some((k) => body[k] !== undefined)) {
+    errors.push('No hay campos para actualizar');
+  }
+
+  for (const key of Object.keys(body)) {
+    if (!allowed.includes(key)) {
+      errors.push(`Campo no permitido: ${key}`);
+    }
+  }
+
+  if (body.nombre !== undefined && body.nombre !== null) {
+    if (typeof body.nombre !== 'string' || body.nombre.trim().length < 2) {
+      errors.push('nombre debe tener al menos 2 caracteres');
+    } else if (body.nombre.length > 200) {
+      errors.push('nombre no puede exceder 200 caracteres');
+    }
+  }
+  if (body.rol !== undefined && body.rol !== null && body.rol !== '') {
+    if (typeof body.rol !== 'string') {
+      errors.push('rol debe ser texto');
+    } else if (body.rol.length > 100) {
+      errors.push('rol no puede exceder 100 caracteres');
+    }
+  }
+
+  return errors;
+}
+
 export function validateIdParam(id) {
   const num = Number(id);
   if (!id || !Number.isInteger(num) || num < 1) {

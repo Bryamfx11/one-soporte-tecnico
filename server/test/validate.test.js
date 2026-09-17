@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validateIncidentCreate, validateIncidentUpdate, validateDiagnostico,
-  validateFinalizar, validateIdParam, ESTADOS_TRANSICION
+  validateFinalizar, validateIdParam, validateTecnicoUpdate, ESTADOS_TRANSICION
 } from '../validate.js';
 
 test('validateIncidentCreate: valida caso correcto', () => {
@@ -100,4 +100,26 @@ test('validateIdParam: valida enteros positivos', () => {
   assert.ok(validateIdParam('abc').length > 0);
   assert.ok(validateIdParam('0').length > 0);
   assert.ok(validateIdParam('1.5').length > 0);
+});
+
+test('validateTecnicoUpdate: acepta actualización válida', () => {
+  assert.equal(validateTecnicoUpdate({ nombre: 'Ana Rodríguez' }).length, 0);
+  assert.equal(validateTecnicoUpdate({ rol: 'Jefe de Redes' }).length, 0);
+  assert.equal(validateTecnicoUpdate({ nombre: 'Ana', rol: 'Técnico' }).length, 0);
+});
+
+test('validateTecnicoUpdate: rechaza cuerpo vacío', () => {
+  assert.ok(validateTecnicoUpdate({}).length > 0);
+});
+
+test('validateTecnicoUpdate: rechaza nombre corto', () => {
+  assert.ok(validateTecnicoUpdate({ nombre: 'A' }).length > 0);
+});
+
+test('validateTecnicoUpdate: rechaza campos no permitidos', () => {
+  assert.ok(validateTecnicoUpdate({ email: 'x@y.com' }).length > 0);
+});
+
+test('validateTecnicoUpdate: rechaza nombre no texto', () => {
+  assert.ok(validateTecnicoUpdate({ nombre: 123 }).length > 0);
 });
