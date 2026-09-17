@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Plus, MapPin, Wifi, X } from 'lucide-react';
 import { api, useApi } from '../api.js';
-import { Spinner, Empty } from '../components/ui.jsx';
+import { SkeletonTable, Empty } from '../components/ui.jsx';
 import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiempo } from '../utils.js';
 
 export default function Incidencias() {
@@ -70,7 +70,7 @@ export default function Incidencias() {
         )}
       </div>
 
-      {loading && <Spinner />}
+      {loading && <SkeletonTable rows={5} cols={7} />}
       {error && <div className="alert-error" role="alert">{error}</div>}
       {!loading && !error && items.length === 0 && <Empty message="No hay incidencias que coincidan con el filtro" />}
 

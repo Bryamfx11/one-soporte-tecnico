@@ -1,21 +1,42 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, Clock, CheckCircle2, ArrowUpCircle, ListTodo
+  Activity, Clock, CheckCircle2, ArrowUpCircle, ListTodo, Download, Printer
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend, Line, LineChart
 } from 'recharts';
 import { api, useApi } from '../api.js';
-import { StatCard, Spinner, Empty } from '../components/ui.jsx';
-import { fmtTiempo } from '../utils.js';
+import { StatCard, Skeleton, SkeletonText, Empty } from '../components/ui.jsx';
+import { fmtTiempo, downloadCSV } from '../utils.js';
 
 const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#64748b'];
+const GRID = 'var(--border)';
 
 export default function Dashboard() {
-  const { data, loading, error } = useApi(() => api.get('/metrics/dashboard'), []);
+  const { data, loading, error, reload } = useApi(() => api.get('/metrics/dashboard'), []);
 
-  if (loading) return <div className="page"><Spinner /></div>;
+  useEffect(() => {
+    const t = setInterval(reload, 30000);
+    return () => clearInterval(t);
+  }, [reload]);
+
+  if (loading && !data) {
+    return (
+      <div className="page">
+        <header className="page-head"><Skeleton style={{ width: 280, height: 30 }} /></header>
+        <section className="grid stats">
+          {[1, 2, 3, 4, 5].map((i) => <div className="card" key={i}><SkeletonText lines={2} /></div>)}
+        </section>
+        <section className="grid two">
+          <div className="card"><SkeletonText lines={3} /></div>
+          <div className="card"><SkeletonText lines={3} /></div>
+        </section>
+        <section className="card"><Skeleton style={{ height: 120 }} /></section>
+      </div>
+    );
+  }
   if (error) return <div className="page alert-error" role="alert">{error}</div>;
   if (!data) return <div className="page"><Empty message="Sin datos" /></div>;
 
@@ -32,6 +53,17 @@ export default function Dashboard() {
     { name: 'Nuevas', value: data.nueva ?? 0 }
   ].filter((d) => d.value > 0);
 
+  function exportCSV() {
+    const rows = [
+      ...tiempoPorTipo.map((t) => ['Tiempo promedio', t.nombre, fmtTiempo(t.ms)]),
+      ...topCausas.map((c) => ['Causa raíz', c.categoria, String(c.c)]),
+      ...porTecnico.map((t) => ['Técnico', t.nombre, `${t.resueltas}/${t.total}`]),
+      ...porDia.map((d) => ['Día', d.dia, String(d.c)])
+    ];
+    downloadCSV(`dashboard-hoy-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Dimensión', 'Etiqueta', 'Valor'], rows);
+  }
+
   return (
     <div className="page">
       <header className="page-head">
@@ -39,7 +71,11 @@ export default function Dashboard() {
           <h1>Dashboard de Soporte Técnico</h1>
           <p>ONE Telecomunicaciones S.A.S. · Área de Soporte Técnico y Redes</p>
         </div>
-        <Link to="/incidencias/nueva" className="btn btn-primary">+ Nueva incidencia</Link>
+        <div className="head-right">
+          <button className="btn btn-ghost" onClick={exportCSV}><Download size={16} /> Exportar CSV</button>
+          <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={16} /> Imprimir</button>
+          <Link to="/incidencias/nueva" className="btn btn-primary">+ Nueva incidencia</Link>
+        </div>
       </header>
 
       <section className="grid stats" aria-label="Indicadores principales">
@@ -56,7 +92,7 @@ export default function Dashboard() {
           <div className="chart tall" role="img" aria-label="Gráfica de tiempo promedio de atención por tipo de falla">
             <ResponsiveContainer>
               <BarChart data={tiempoPorTipo} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
                 <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => fmtTiempo(v)} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v) => [fmtTiempo(v), 'Tiempo promedio']} />
@@ -64,6 +100,15 @@ export default function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <table className="sr-only">
+            <caption>Tiempo promedio de atención por tipo de falla</caption>
+            <thead><tr><th>Tipo de falla</th><th>Tiempo promedio</th></tr></thead>
+            <tbody>
+              {tiempoPorTipo.map((t) => (
+                <tr key={t.nombre}><td>{t.nombre}</td><td>{fmtTiempo(t.ms)}</td></tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         <div className="card">
@@ -79,6 +124,9 @@ export default function Dashboard() {
               </PieChart>
             </ResponsiveContainer>
           </div>
+          <p className="sr-only">
+            {pieData.map((d) => `${d.name}: ${d.value}`).join('. ')}
+          </p>
         </div>
       </section>
 
@@ -88,7 +136,7 @@ export default function Dashboard() {
           <div className="chart" role="img" aria-label="Gráfica de tendencia de incidencias en los últimos 30 días">
             <ResponsiveContainer>
               <LineChart data={porDia} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
                 <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
@@ -96,6 +144,15 @@ export default function Dashboard() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          <table className="sr-only">
+            <caption>Incidencias registradas por día en los últimos 30 días</caption>
+            <thead><tr><th>Día</th><th>Incidencias</th></tr></thead>
+            <tbody>
+              {porDia.map((d) => (
+                <tr key={d.dia}><td>{d.dia}</td><td>{d.c}</td></tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         <div className="card">

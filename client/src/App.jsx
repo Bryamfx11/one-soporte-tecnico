@@ -9,6 +9,7 @@ import NuevaIncidencia from './pages/NuevaIncidencia.jsx';
 import Conocimiento from './pages/Conocimiento.jsx';
 import Indicadores from './pages/Indicadores.jsx';
 import NotFound from './pages/NotFound.jsx';
+import { ToastProvider } from './components/Toast.jsx';
 import { getToken } from './api.js';
 
 function LoginRoute() {
@@ -18,7 +19,8 @@ function LoginRoute() {
 
 export default function App() {
   return (
-    <Routes>
+    <ToastProvider>
+      <Routes>
       <Route path="/login" element={<LoginRoute />} />
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route path="/" element={<Dashboard />} />
@@ -30,5 +32,6 @@ export default function App() {
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
+    </ToastProvider>
   );
 }

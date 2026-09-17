@@ -38,3 +38,21 @@ export function fmtTiempo(ms) {
   if (horas < 24) return `${horas.toFixed(1)} h`;
   return `${(horas / 24).toFixed(1)} días`;
 }
+
+function csvCell(value) {
+  const s = value == null ? '' : String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+export function downloadCSV(filename, headers, rows) {
+  const body = [headers, ...rows].map((r) => r.map(csvCell).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + body], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

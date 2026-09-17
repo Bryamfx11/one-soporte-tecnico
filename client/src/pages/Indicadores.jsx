@@ -1,16 +1,34 @@
+import { useEffect } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, Line, LineChart
 } from 'recharts';
+import { Download, Printer } from 'lucide-react';
 import { api, useApi } from '../api.js';
-import { Spinner, Empty } from '../components/ui.jsx';
-import { fmtTiempo } from '../utils.js';
+import { Skeleton, SkeletonText, Empty } from '../components/ui.jsx';
+import { fmtTiempo, downloadCSV } from '../utils.js';
 
 const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#64748b'];
+const GRID = 'var(--border)';
 
 export default function Indicadores() {
-  const { data, loading, error } = useApi(() => api.get('/metrics/dashboard'), []);
+  const { data, loading, error, reload } = useApi(() => api.get('/metrics/dashboard'), []);
 
-  if (loading) return <div className="page"><Spinner /></div>;
+  useEffect(() => {
+    const t = setInterval(reload, 30000);
+    return () => clearInterval(t);
+  }, [reload]);
+
+  if (loading && !data) {
+    return (
+      <div className="page">
+        <header className="page-head"><Skeleton style={{ width: 260, height: 30 }} /></header>
+        <section className="grid three">
+          {[1, 2, 3].map((i) => <div className="card" key={i}><SkeletonText lines={2} /></div>)}
+        </section>
+        <section className="card"><Skeleton style={{ height: 200 }} /></section>
+      </div>
+    );
+  }
   if (error) return <div className="page alert-error" role="alert">{error}</div>;
   if (!data) return <div className="page"><Empty message="Sin datos" /></div>;
 
@@ -30,12 +48,30 @@ export default function Indicadores() {
     { name: 'Nuevas', value: data.nueva ?? 0 }
   ].filter((d) => d.value > 0);
 
+  function exportCSV() {
+    const rows = [
+      ['Total', '', String(total)],
+      ['Resueltas', '', String(resueltas)],
+      ['Tasa resolución', '', `${tasa}%`],
+      ['Tiempo promedio', '', fmtTiempo(data.tiempo_promedio_ms)],
+      ...topCausas.map((c) => ['Causa raíz', c.categoria, String(c.c)]),
+      ...tiempoPorTipo.map((t) => ['Tiempo por tipo', t.nombre, fmtTiempo(t.ms)]),
+      ...porTecnico.map((t) => ['Técnico', t.nombre, `${t.resueltas}/${t.total}`])
+    ];
+    downloadCSV(`indicadores-hoy-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Dimensión', 'Etiqueta', 'Valor'], rows);
+  }
+
   return (
     <div className="page">
       <header className="page-head">
         <div>
           <h1>Indicadores del Plan de Mejora</h1>
           <p>Indicadores alineados con los objetivos específicos (diagnosticar, analizar, proponer)</p>
+        </div>
+        <div className="head-right">
+          <button className="btn btn-ghost" onClick={exportCSV}><Download size={16} /> Exportar CSV</button>
+          <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={16} /> Imprimir</button>
         </div>
       </header>
 
@@ -63,7 +99,7 @@ export default function Indicadores() {
         <div className="chart" role="img" aria-label="Gráfica de causas más recurrentes">
           <ResponsiveContainer>
             <BarChart data={topCausas} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
               <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="categoria" width={150} tick={{ fontSize: 11 }} />
               <Tooltip />
@@ -71,6 +107,15 @@ export default function Indicadores() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+        <table className="sr-only">
+          <caption>Causas más recurrentes</caption>
+          <thead><tr><th>Causa</th><th>Casos</th></tr></thead>
+          <tbody>
+            {topCausas.map((c) => (
+              <tr key={c.categoria}><td>{c.categoria}</td><td>{c.c}</td></tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       <section className="grid two">
@@ -80,7 +125,7 @@ export default function Indicadores() {
           <div className="chart tall" role="img" aria-label="Gráfica de tiempo promedio por tipo de falla">
             <ResponsiveContainer>
               <BarChart data={tiempoPorTipo} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
                 <XAxis dataKey="nombre" tick={{ fontSize: 10 }} />
                 <YAxis tickFormatter={(v) => fmtTiempo(v)} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v) => [fmtTiempo(v), 'Tiempo promedio']} />
@@ -88,6 +133,15 @@ export default function Indicadores() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <table className="sr-only">
+            <caption>Tiempo promedio por tipo de falla</caption>
+            <thead><tr><th>Tipo de falla</th><th>Tiempo promedio</th></tr></thead>
+            <tbody>
+              {tiempoPorTipo.map((t) => (
+                <tr key={t.nombre}><td>{t.nombre}</td><td>{fmtTiempo(t.ms)}</td></tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         <div className="card">
@@ -134,6 +188,9 @@ export default function Indicadores() {
               </PieChart>
             </ResponsiveContainer>
           </div>
+          <p className="sr-only">
+            {pieData.map((d) => `${d.name}: ${d.value}`).join('. ')}
+          </p>
         </div>
 
         <div className="card">
@@ -142,7 +199,7 @@ export default function Indicadores() {
           <div className="chart" role="img" aria-label="Gráfica de tendencia de registro en 30 días">
             <ResponsiveContainer>
               <LineChart data={porDia} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
                 <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
@@ -150,6 +207,15 @@ export default function Indicadores() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          <table className="sr-only">
+            <caption>Tendencia de registro por día</caption>
+            <thead><tr><th>Día</th><th>Incidencias</th></tr></thead>
+            <tbody>
+              {porDia.map((d) => (
+                <tr key={d.dia}><td>{d.dia}</td><td>{d.c}</td></tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
     </div>

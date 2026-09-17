@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BookOpen, CheckCircle2, XCircle, Gauge } from 'lucide-react';
 import { api, useApi } from '../api.js';
-import { Spinner, Empty } from '../components/ui.jsx';
+import { Skeleton, SkeletonText, Empty } from '../components/ui.jsx';
 
 const ICONOS = {
   'wifi-off': '📡',
@@ -15,7 +15,18 @@ export default function Conocimiento() {
   const { data: checklists, loading, error } = useApi(() => api.get('/checklists'), []);
   const [sel, setSel] = useState(null);
 
-  if (loading) return <div className="page"><Spinner /></div>;
+  if (loading) {
+    return (
+      <div className="page">
+        <header className="page-head"><Skeleton style={{ width: 240, height: 28 }} /></header>
+        <section className="grid three kb-grid">
+          {[1, 2, 3].map((i) => (
+            <div className="card" key={i}><SkeletonText lines={3} /></div>
+          ))}
+        </section>
+      </div>
+    );
+  }
   if (error) return <div className="page alert-error">{error}</div>;
   if (!checklists) return <div className="page"><Empty message="Sin datos" /></div>;
 

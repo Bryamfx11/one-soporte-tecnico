@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { api, useApi } from '../api.js';
-import { Spinner } from '../components/ui.jsx';
+import { Skeleton, SkeletonText } from '../components/ui.jsx';
+import { useToast } from '../components/Toast.jsx';
 import { PRIORIDADES } from '../utils.js';
 
 export default function NuevaIncidencia() {
   const navigate = useNavigate();
+  const showToast = useToast();
   const { data: tipos, loading: loadingTipos, error: errorTipos } = useApi(() => api.get('/checklists/tipos'), []);
   const { data: tecnicos } = useApi(() => api.get('/tecnicos'), []);
 
@@ -30,14 +32,23 @@ export default function NuevaIncidencia() {
         tipo_falla_id: Number(form.tipo_falla_id),
         tecnico_id: form.tecnico_id ? Number(form.tecnico_id) : null
       });
+      showToast('success', `Incidencia ${created.numero_ticket} creada.`);
       navigate(`/incidencias/${created.id}`);
     } catch (err) {
       setError(err.message);
+      showToast('error', err.message);
       setSaving(false);
     }
   }
 
-  if (loadingTipos) return <div className="page"><Spinner /></div>;
+  if (loadingTipos) {
+    return (
+      <div className="page">
+        <header className="page-head"><Skeleton style={{ width: 220, height: 28 }} /></header>
+        <div className="card"><SkeletonText lines={6} /></div>
+      </div>
+    );
+  }
   if (errorTipos) return <div className="page alert-error" role="alert">{errorTipos}</div>;
 
   return (

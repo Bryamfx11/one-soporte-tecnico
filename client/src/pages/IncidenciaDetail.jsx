@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   User, MapPin, Phone, Play, Save, X,
-  ChevronLeft, ChevronRight, CheckCircle2, Wrench
+  ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2
 } from 'lucide-react';
-import { api, useApi } from '../api.js';
-import { Spinner, Badge } from '../components/ui.jsx';
+import { api, getUser, useApi } from '../api.js';
+import { Badge, ConfirmDialog, Skeleton, SkeletonText } from '../components/ui.jsx';
+import { useToast } from '../components/Toast.jsx';
 import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiempo } from '../utils.js';
 
 export default function IncidenciaDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const showToast = useToast();
+  const user = getUser();
   const { data: inc, loading, error, reload } = useApi(() => api.get(`/incidents/${id}`), [id]);
   const { data: causas } = useApi(() => api.get('/checklists/causas-raiz'), []);
   const { data: tecnicos } = useApi(() => api.get('/tecnicos'), []);
@@ -23,13 +27,28 @@ export default function IncidenciaDetail() {
   const [tecnicoSel, setTecnicoSel] = useState('');
   const [savingTec, setSavingTec] = useState(false);
   const [tecError, setTecError] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (inc && (inc.tecnico_id ?? '') !== '') setTecnicoSel(inc.tecnico_id);
   }, [inc?.tecnico_id]);
 
-  if (loading) return <div className="page"><Spinner /></div>;
-  if (error) return <div className="page alert-error">{error}</div>;
+  if (loading) {
+    return (
+      <div className="page">
+        <header className="page-head">
+          <Skeleton style={{ width: 240, height: 28 }} />
+        </header>
+        <section className="grid two">
+          <div className="card"><SkeletonText lines={4} /></div>
+          <div className="card"><SkeletonText lines={4} /></div>
+        </section>
+        <Skeleton style={{ height: 120 }} />
+      </div>
+    );
+  }
+  if (error) return <div className="page alert-error" role="alert">{error}</div>;
   if (!inc) return <div className="page">Incidencia no encontrada</div>;
 
   async function asignaTecnico(e) {
@@ -39,10 +58,25 @@ export default function IncidenciaDetail() {
     try {
       await api.patch(`/incidents/${inc.id}`, { tecnico_id: tecnicoSel ? Number(tecnicoSel) : null });
       reload();
+      showToast('success', 'Técnico asignado correctamente.');
     } catch (err) {
       setTecError(err.message);
+      showToast('error', err.message);
     } finally {
       setSavingTec(false);
+    }
+  }
+
+  async function confirmDelete() {
+    setDeleting(true);
+    try {
+      await api.del(`/incidents/${inc.id}`);
+      showToast('success', `Incidencia ${inc.numero_ticket} eliminada.`);
+      navigate('/incidencias');
+    } catch (err) {
+      showToast('error', err.message);
+      setDeleting(false);
+      setConfirmingDelete(false);
     }
   }
 
@@ -106,6 +140,12 @@ export default function IncidenciaDetail() {
               <Play size={16} /> Iniciar diagnóstico guiado
             </button>
           )}
+
+          {user?.rol === 'admin' && (
+            <button className="btn btn-danger btn-block mt" onClick={() => setConfirmingDelete(true)}>
+              <Trash2 size={16} /> Eliminar incidencia
+            </button>
+          )}
         </div>
       </section>
 
@@ -142,6 +182,16 @@ export default function IncidenciaDetail() {
           causas={causas}
           onClose={() => setWizardOpen(false)}
           onSaved={() => { setWizardOpen(false); reload(); }}
+        />
+      )}
+
+      {confirmingDelete && (
+        <ConfirmDialog
+          title="Eliminar incidencia"
+          message={`¿Confirma la eliminación de ${inc.numero_ticket}? Esta acción es irreversible.`}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={confirmDelete}
+          busy={deleting}
         />
       )}
     </div>

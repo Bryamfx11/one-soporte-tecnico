@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User } from 'lucide-react';
+import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon } from 'lucide-react';
 import { getUser, setToken, setUser } from '../api.js';
+
+const THEME_KEY = 'one_theme';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -12,8 +14,26 @@ const NAV = [
 
 export default function Layout() {
   const [open, setOpen] = useState(false);
+  const [dark, setDark] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_KEY) === 'dark';
+    } catch {
+      return false;
+    }
+  });
   const navigate = useNavigate();
   const user = getUser();
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    try {
+      localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+    } catch {}
+  }, [dark]);
+
+  function toggleTheme() {
+    setDark((d) => !d);
+  }
 
   function logout() {
     setToken(null);
@@ -40,9 +60,14 @@ export default function Layout() {
         <div className="topbar-brand">
           <img className="topbar-logo-img" src="/logo-one.png" alt="" /> ONETec
         </div>
-        <button className="icon-btn logout-btn" onClick={logout} aria-label="Cerrar sesión">
-          <LogOut size={18} />
-        </button>
+        <div className="topbar-actions">
+          <button className="theme-toggle" onClick={toggleTheme} aria-label={dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}>
+            {dark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button className="icon-btn logout-btn" onClick={logout} aria-label="Cerrar sesión">
+            <LogOut size={18} />
+          </button>
+        </div>
       </div>
 
       <aside className={`sidebar ${open ? 'open' : ''}`}>
@@ -75,6 +100,9 @@ export default function Layout() {
           <Link to="/incidencias/nueva" className="btn btn-primary btn-block" onClick={() => setOpen(false)}>
             <Plus size={16} /> Nueva incidencia
           </Link>
+          <button className="theme-toggle" onClick={toggleTheme}>
+            {dark ? <Sun size={16} /> : <Moon size={16} />} Tema {dark ? 'claro' : 'oscuro'}
+          </button>
           <div className="meta">
             <Wifi size={14} /> FTTH · Tunja / Bogotá
           </div>
