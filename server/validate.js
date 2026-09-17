@@ -4,8 +4,8 @@ const PRIORIDADES_VALIDAS = ['alta', 'media', 'baja'];
 export const ESTADOS_TRANSICION = {
   nueva: ['en_diagnostico'],
   en_diagnostico: ['nueva'],
-  resuelta: ['nueva', 'en_diagnostico'],
-  escalada: ['nueva', 'en_diagnostico']
+  resuelta: [],
+  escalada: []
 };
 
 function campoTextoObligatorio(errors, body, campo, min, max, msg) {

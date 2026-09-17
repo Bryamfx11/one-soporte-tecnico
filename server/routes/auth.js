@@ -44,7 +44,9 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
 
   const user = db.prepare('SELECT * FROM usuarios WHERE email = ?').get(String(req.body.email).toLowerCase().trim());
-  if (!user || !(await bcrypt.compare(req.body.password, user.password_hash))) {
+  const dummyHash = '$2b$10$bZ7Mz2OPnqMeBTOBYvVn4ebdRhYCZTgkvEvIMi/DpTr96u/ClVMju';
+  const ok = user ? await bcrypt.compare(req.body.password, user.password_hash) : await bcrypt.compare(req.body.password, dummyHash);
+  if (!user || !ok) {
     return res.status(401).json({ error: 'Credenciales incorrectas' });
   }
 

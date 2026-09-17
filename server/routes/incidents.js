@@ -89,22 +89,41 @@ incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, re
     if (!tecExiste) return res.status(400).json({ error: 'tecnico_id no existe' });
   }
 
-  const maxNum = db.prepare("SELECT COALESCE(MAX(CAST(SUBSTR(numero_ticket, 5) AS INTEGER)), 0) AS m FROM incidencias").get().m;
-  const numero_ticket = `ONE-${String(maxNum + 1).padStart(4, '0')}`;
-  const r = db.prepare(`INSERT INTO incidencias
-    (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, creada_en)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    numero_ticket, String(cliente).trim(),
-    typeof telefono === 'string' ? telefono.trim() : '',
-    typeof direccion === 'string' ? direccion.trim() : '',
-    typeof barrio === 'string' ? barrio.trim() : '',
-    Number(tipo_falla_id), prioridad, 'nueva', tecnico_id ? Number(tecnico_id) : null,
-    typeof sintomas === 'string' ? sintomas.trim() : '',
-    typeof descripcion === 'string' ? descripcion.trim() : '',
-    Date.now()
-  );
-  const row = db.prepare(`${INC_SELECT} WHERE i.id = ?`).get(Number(r.lastInsertRowid));
-  res.status(201).json(mapInc(row));
+  const ticketUnico = (mapar) => {
+  for (let intento = 0; intento < 3; intento++) {
+    const maxNum = db.prepare("SELECT COALESCE(MAX(CAST(SUBSTR(numero_ticket, 5) AS INTEGER)), 0) AS m FROM incidencias").get().m;
+    const numero_ticket = `ONE-${String(maxNum + 1).padStart(4, '0')}`;
+    try {
+      const r = db.prepare(`INSERT INTO incidencias
+        (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, creada_en)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        numero_ticket, String(cliente).trim(),
+        typeof telefono === 'string' ? telefono.trim() : '',
+        typeof direccion === 'string' ? direccion.trim() : '',
+        typeof barrio === 'string' ? barrio.trim() : '',
+        Number(tipo_falla_id), prioridad, 'nueva', tecnico_id ? Number(tecnico_id) : null,
+        typeof sintomas === 'string' ? sintomas.trim() : '',
+        typeof descripcion === 'string' ? descripcion.trim() : '',
+        Date.now()
+      );
+      return mapar(r);
+    } catch (err) {
+      if (err.code === 'ERR_SQLITE_ERROR' && (err.errcode & 0xff) === 19) {
+        continue;
+      }
+      throw err;
+    }
+  }
+  const err = new Error('No se pudo generar un numero_ticket único (colisión persistente)');
+  err.status = 500;
+  throw err;
+};
+
+const r = ticketUnico((result) => {
+  const row = db.prepare(`${INC_SELECT} WHERE i.id = ?`).get(Number(result.lastInsertRowid));
+  return { row };
+});
+res.status(201).json(mapInc(r.row));
 });
 
 incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentUpdate), (req, res) => {

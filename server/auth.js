@@ -1,11 +1,16 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
 import { db } from './db.js';
 
 if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET es obligatorio en producción');
 }
 
-const SECRET = process.env.JWT_SECRET ?? 'one-soporte-dev-secret-cambiar-en-produccion';
+const SECRET = process.env.JWT_SECRET ?? (() => {
+  const s = crypto.randomBytes(32).toString('hex');
+  console.warn('[auth] JWT_SECRET no definido: usando secreto aleatorio para esta ejecución. Todos los tokens existentes quedan inválidos (expiran en 8h). Define JWT_SECRET en producción.');
+  return s;
+})();
 
 export function signToken(user) {
   return jwt.sign(
