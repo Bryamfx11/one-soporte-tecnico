@@ -37,6 +37,7 @@ export default function Ajustes() {
   const showToast = useToast();
   const user = getUser();
   const { dark, toggle: toggleTheme } = useTheme();
+  const [form, setForm] = useState(getCriterios);
 
   function onNum(key, e) {
     const v = Number(e.target.value);
