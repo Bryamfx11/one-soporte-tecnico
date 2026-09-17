@@ -47,6 +47,10 @@ a { color: var(--primary); text-decoration: none; }
 }
 .brand-name { font-weight: 700; color: #fff; font-size: 15px; }
 .brand-sub { font-size: 11px; color: #94a3b8; }
+.brand-logo-img {
+  width: 40px; height: 40px; object-fit: contain;
+  background: #fff; border-radius: 8px; padding: 4px;
+}
 
 .nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
@@ -310,6 +314,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .topbar .icon-btn { color: #cbd5e1; }
 .topbar .icon-btn:hover { background: #1e293b; color: #fff; }
 .topbar-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.topbar-logo-img { height: 22px; width: auto; object-fit: contain; }
 
 /* ---------- Sidebar user ---------- */
 .sidebar-user {
@@ -335,6 +340,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   padding: 32px;
 }
 .login-brand { text-align: center; margin-bottom: 8px; }
+.login-logo-img {
+  width: 100px; height: auto; object-fit: contain;
+  display: inline-block; margin-bottom: 4px;
+}
 .login-brand h1 { margin: 12px 0 4px; font-size: 20px; }
 .login-brand p { margin: 0; color: var(--muted); font-size: 13px; }
 .login-brand .brand-logo { margin: 0 auto; }

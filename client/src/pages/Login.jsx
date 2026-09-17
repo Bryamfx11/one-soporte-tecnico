@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Wifi, LogIn } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { api, setToken, setUser } from '../api.js';
 
 export default function Login() {
@@ -34,7 +34,7 @@ export default function Login() {
     <div className="login-wrap">
       <form className="card login-card" onSubmit={submit}>
         <div className="login-brand">
-          <div className="brand-logo"><Wifi size={24} /></div>
+          <img className="login-logo-img" src="/logo-one.png" alt="Logo ONE Telecomunicaciones" />
           <h1>ONETec</h1>
           <p>Plataforma de Soporte Técnico · ONE Telecomunicaciones</p>
         </div>

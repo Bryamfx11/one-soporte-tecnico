@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, Workflow, LogOut, Menu, X, User } from 'lucide-react';
+import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User } from 'lucide-react';
 import { getUser, setToken, setUser } from '../api.js';
 
 const NAV = [
@@ -38,7 +38,7 @@ export default function Layout() {
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
         <div className="topbar-brand">
-          <Wifi size={16} /> ONETec
+          <img className="topbar-logo-img" src="/logo-one.png" alt="" /> ONETec
         </div>
         <button className="icon-btn logout-btn" onClick={logout} aria-label="Cerrar sesión">
           <LogOut size={18} />
@@ -47,7 +47,7 @@ export default function Layout() {
 
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="brand">
-          <div className="brand-logo"><Workflow size={22} /></div>
+          <img className="brand-logo-img" src="/logo-one.png" alt="Logo ONE Telecomunicaciones" />
           <div>
             <div className="brand-name">ONETec</div>
             <div className="brand-sub">Plan de Mejora N3</div>
