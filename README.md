@@ -15,7 +15,7 @@
 
 [📄 Informe del Plan de Mejora](docs/Informe_Plan_de_Mejora_N3.pdf) ·
 [🚀 Ver en GitHub](https://github.com/Bryamfx11/one-soporte-tecnico) ·
-[📊 Dashboard (demo local)](http://localhost:5173)
+[📊 App (desplegada)](http://localhost:4000)
 
 </div>
 
