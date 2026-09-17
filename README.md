@@ -147,7 +147,7 @@ one-soporte-tecnico/
 │   ├── app.js                           # Configuración de la app Express
 │   ├── db.js                            # Esquema de base de datos (SQLite)
 │   ├── auth.js                          # JWT y middleware de autenticación
-│   ├── security.js                      # Rate limiting y cabeceras de seguridad
+│   ├── security.js                      # Rate limiting, cabeceras de seguridad y CORS
 │   ├── validate.js                      # Validación de peticiones
 │   ├── seed.js                          # Datos de ejemplo (checklists FTTH, causas)
 │   ├── routes/
@@ -166,13 +166,19 @@ one-soporte-tecnico/
         │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico guiado
         │   ├── NuevaIncidencia.jsx      # Formulario de creación
         │   ├── Conocimiento.jsx         # Base de conocimiento
-        │   └── Indicadores.jsx          # Métricas del plan de mejora
+        │   ├── Indicadores.jsx          # Métricas del plan de mejora
+        │   ├── Ajustes.jsx              # Tema y criterios del plan de mejora
+        │   └── NotFound.jsx             # Error 404
         ├── components/
         │   ├── Layout.jsx               # Sidebar, topbar móvil y navegación
         │   ├── RequireAuth.jsx          # Guard de rutas protegidas
+        │   ├── Toast.jsx                # Notificaciones (contexto)
         │   └── ui.jsx                   # Componentes reutilizables
+        ├── hooks/
+        │   ├── useFocusTrap.js          # Trampa de foco para modales
+        │   └── useTheme.js              # Tema claro/oscuro persistente
         ├── test/                        # Pruebas de componentes
-        └── api.js                       # Cliente HTTP con manejo de token
+        └── api.js                       # Cliente HTTP, sesión y hook useApi
 ```
 
 ---
