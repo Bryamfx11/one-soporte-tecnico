@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validateIncidentCreate, validateIncidentUpdate, validateDiagnostico,
-  validateFinalizar, validateIdParam
+  validateFinalizar, validateIdParam, ESTADOS_TRANSICION
 } from '../validate.js';
 
 test('validateIncidentCreate: valida caso correcto', () => {
@@ -31,6 +31,18 @@ test('validateIncidentCreate: acepta prioridad válida', () => {
   assert.equal(validateIncidentCreate({ cliente: 'Ana', tipo_falla_id: 1, prioridad: 'alta' }).length, 0);
 });
 
+test('validateIncidentCreate: rechaza campos opcionales no-string', () => {
+  assert.ok(validateIncidentCreate({ cliente: 'Ana', tipo_falla_id: 1, telefono: 3001234567 }).length > 0);
+  assert.ok(validateIncidentCreate({ cliente: 'Ana', tipo_falla_id: 1, direccion: 123 }).length > 0);
+  assert.ok(validateIncidentCreate({ cliente: 'Ana', tipo_falla_id: 1, barrio: ['Centro'] }).length > 0);
+  assert.ok(validateIncidentCreate({ cliente: 'Ana', tipo_falla_id: 1, sintomas: { x: 1 } }).length > 0);
+  assert.ok(validateIncidentCreate({ cliente: 'Ana', tipo_falla_id: 1, descripcion: 42 }).length > 0);
+});
+
+test('validateIncidentCreate: acepta campos opcionales string', () => {
+  assert.equal(validateIncidentCreate({ cliente: 'Ana', tipo_falla_id: 1, telefono: '3001234567', barrio: 'Centro' }).length, 0);
+});
+
 test('validateIncidentUpdate: rechaza campos no permitidos', () => {
   assert.ok(validateIncidentUpdate({ hack: 'x' }).length > 0);
 });
@@ -41,6 +53,17 @@ test('validateIncidentUpdate: acepta campos permitidos', () => {
 
 test('validateIncidentUpdate: rechaza estado inválido', () => {
   assert.ok(validateIncidentUpdate({ estado: 'inventado' }).length > 0);
+});
+
+test('validateIncidentUpdate: rechaza campos opcionales no-string', () => {
+  assert.ok(validateIncidentUpdate({ telefono: 300123 }).length > 0);
+  assert.ok(validateIncidentUpdate({ direccion: null }).length === 0);
+});
+
+test('ESTADOS_TRANSICION: no permite saltar a resuelta/escalada directo', () => {
+  assert.deepEqual(ESTADOS_TRANSICION.nueva, ['en_diagnostico']);
+  assert.ok(!ESTADOS_TRANSICION.nueva.includes('resuelta'));
+  assert.ok(!ESTADOS_TRANSICION.nueva.includes('escalada'));
 });
 
 test('validateDiagnostico: rechaza lista vacía', () => {
@@ -56,11 +79,20 @@ test('validateDiagnostico: acepta respuestas válidas', () => {
 });
 
 test('validateFinalizar: rechaza estado inválido', () => {
-  assert.ok(validateFinalizar({ estado: 'nueva' }).length > 0);
+  assert.ok(validateFinalizar({ estado: 'nueva', causa_raiz_id: 1 }).length > 0);
 });
 
-test('validateFinalizar: acepta escalada', () => {
-  assert.equal(validateFinalizar({ estado: 'escalada' }).length, 0);
+test('validateFinalizar: requiere causa raíz', () => {
+  assert.ok(validateFinalizar({ estado: 'resuelta' }).length > 0);
+  assert.ok(validateFinalizar({ estado: 'escalada' }).length > 0);
+});
+
+test('validateFinalizar: acepta escalada con causa raíz', () => {
+  assert.equal(validateFinalizar({ estado: 'escalada', causa_raiz_id: 1 }).length, 0);
+});
+
+test('validateFinalizar: acepta resuelta con causa raíz', () => {
+  assert.equal(validateFinalizar({ estado: 'resuelta', causa_raiz_id: 1, solucion_aplicada: 'Reinicio' }).length, 0);
 });
 
 test('validateIdParam: valida enteros positivos', () => {

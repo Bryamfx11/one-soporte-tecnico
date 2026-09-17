@@ -1,36 +1,54 @@
 const ESTADOS_VALIDOS = ['nueva', 'en_diagnostico', 'resuelta', 'escalada'];
 const PRIORIDADES_VALIDAS = ['alta', 'media', 'baja'];
 
+export const ESTADOS_TRANSICION = {
+  nueva: ['en_diagnostico'],
+  en_diagnostico: ['nueva'],
+  resuelta: ['nueva', 'en_diagnostico'],
+  escalada: ['nueva', 'en_diagnostico']
+};
+
+function campoTextoObligatorio(errors, body, campo, min, max, msg) {
+  if (body[campo] === undefined || typeof body[campo] !== 'string' || body[campo].trim().length < min) {
+    errors.push(msg);
+  } else if (body[campo].length > max) {
+    errors.push(`${campo} no puede exceder ${max} caracteres`);
+  }
+}
+
+function campoTextoOpcional(errors, body, campo, max, msg) {
+  if (body[campo] === undefined || body[campo] === null) return;
+  if (typeof body[campo] !== 'string') {
+    errors.push(msg ?? `${campo} debe ser texto`);
+  } else if (body[campo].length > max) {
+    errors.push(`${campo} no puede exceder ${max} caracteres`);
+  }
+}
+
+function campoTextoOpcionalMin(errors, body, campo, min, max, msg) {
+  if (body[campo] === undefined || body[campo] === null) return;
+  if (typeof body[campo] !== 'string' || body[campo].trim().length < min) {
+    errors.push(msg);
+  } else if (body[campo].length > max) {
+    errors.push(`${campo} no puede exceder ${max} caracteres`);
+  }
+}
+
 export function validateIncidentCreate(body) {
   const errors = [];
 
-  if (!body.cliente || typeof body.cliente !== 'string' || body.cliente.trim().length < 2) {
-    errors.push('cliente es obligatorio (mínimo 2 caracteres)');
-  }
-  if (body.cliente && body.cliente.length > 200) {
-    errors.push('cliente no puede exceder 200 caracteres');
-  }
+  campoTextoObligatorio(errors, body, 'cliente', 2, 200, 'cliente es obligatorio (mínimo 2 caracteres)');
   if (!body.tipo_falla_id || !Number.isInteger(Number(body.tipo_falla_id)) || Number(body.tipo_falla_id) < 1) {
     errors.push('tipo_falla_id es obligatorio y debe ser un número entero positivo');
   }
   if (body.prioridad && !PRIORIDADES_VALIDAS.includes(body.prioridad)) {
     errors.push(`prioridad debe ser una de: ${PRIORIDADES_VALIDAS.join(', ')}`);
   }
-  if (body.telefono && typeof body.telefono === 'string' && body.telefono.length > 20) {
-    errors.push('telefono no puede exceder 20 caracteres');
-  }
-  if (body.direccion && typeof body.direccion === 'string' && body.direccion.length > 300) {
-    errors.push('direccion no puede exceder 300 caracteres');
-  }
-  if (body.barrio && typeof body.barrio === 'string' && body.barrio.length > 100) {
-    errors.push('barrio no puede exceder 100 caracteres');
-  }
-  if (body.sintomas && typeof body.sintomas === 'string' && body.sintomas.length > 1000) {
-    errors.push('sintomas no puede exceder 1000 caracteres');
-  }
-  if (body.descripcion && typeof body.descripcion === 'string' && body.descripcion.length > 2000) {
-    errors.push('descripcion no puede exceder 2000 caracteres');
-  }
+  campoTextoOpcional(errors, body, 'telefono', 20);
+  campoTextoOpcional(errors, body, 'direccion', 300);
+  campoTextoOpcional(errors, body, 'barrio', 100);
+  campoTextoOpcional(errors, body, 'sintomas', 1000);
+  campoTextoOpcional(errors, body, 'descripcion', 2000);
   if (body.tecnico_id !== undefined && body.tecnico_id !== null && body.tecnico_id !== '') {
     const tid = Number(body.tecnico_id);
     if (!Number.isInteger(tid) || tid < 1) {
@@ -51,14 +69,12 @@ export function validateIncidentUpdate(body) {
     }
   }
 
-  if (body.cliente !== undefined) {
-    if (typeof body.cliente !== 'string' || body.cliente.trim().length < 2) {
-      errors.push('cliente debe tener al menos 2 caracteres');
-    }
-    if (body.cliente.length > 200) {
-      errors.push('cliente no puede exceder 200 caracteres');
-    }
-  }
+  campoTextoOpcionalMin(errors, body, 'cliente', 2, 200, 'cliente debe tener al menos 2 caracteres');
+  campoTextoOpcional(errors, body, 'telefono', 20);
+  campoTextoOpcional(errors, body, 'direccion', 300);
+  campoTextoOpcional(errors, body, 'barrio', 100);
+  campoTextoOpcional(errors, body, 'sintomas', 1000);
+  campoTextoOpcional(errors, body, 'descripcion', 2000);
   if (body.estado !== undefined && !ESTADOS_VALIDOS.includes(body.estado)) {
     errors.push(`estado debe ser una de: ${ESTADOS_VALIDOS.join(', ')}`);
   }
@@ -126,6 +142,10 @@ export function validateFinalizar(body) {
   }
   if (body.solucion_aplicada && body.solucion_aplicada.length > 2000) {
     errors.push('solucion_aplicada no puede exceder 2000 caracteres');
+  }
+  // Para cerrar como resuelta siempre se requiere causa raíz identificada
+  if (body.causa_raiz_id === undefined || body.causa_raiz_id === null || body.causa_raiz_id === '') {
+    errors.push('causa_raiz_id es obligatorio para finalizar el caso');
   }
 
   return errors;

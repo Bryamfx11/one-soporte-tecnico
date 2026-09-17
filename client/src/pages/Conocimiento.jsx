@@ -37,7 +37,7 @@ export default function Conocimiento() {
               <div className="kb-icon">{ICONOS[c.icono] ?? <BookOpen size={22} />}</div>
               <h3>{c.nombre}</h3>
               <p>{c.descripcion}</p>
-              <span className="kb-count"><Gauge size={14} /> {c.consultas.length} pasos de diagnóstico</span>
+              <span className="kb-count"><Gauge size={14} /> {(c.consultas ?? []).length} pasos de diagnóstico</span>
             </button>
           ))}
         </section>
@@ -51,7 +51,7 @@ export default function Conocimiento() {
             <button className="btn btn-ghost" onClick={() => setSel(null)}>← Volver al listado</button>
           </div>
           <ol className="kb-steps">
-            {activo.consultas.map((q, i) => (
+            {(activo.consultas ?? []).map((q, i) => (
               <li key={q.id} className="kb-step">
                 <div className="kb-step-num">{i + 1}</div>
                 <div className="kb-step-body">

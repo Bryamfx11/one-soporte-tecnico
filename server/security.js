@@ -1,0 +1,38 @@
+// Middlewares de seguridad: limitador de peticiones y cabeceras seguras.
+
+export function rateLimit({ windowMs = 60000, max = 300, message = 'Demasiadas peticiones, intente más tarde' } = {}) {
+  const hits = new Map();
+
+  return (req, res, next) => {
+    const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const now = Date.now();
+    const windowStart = now - windowMs;
+    const list = (hits.get(ip) ?? []).filter((t) => t > windowStart);
+    if (list.length >= max) {
+      res.setHeader('Retry-After', Math.ceil(windowMs / 1000));
+      return res.status(429).json({ error: message });
+    }
+    list.push(now);
+    hits.set(ip, list);
+
+    // Evitar crecimiento ilimitado de la tabla de IPs
+    if (hits.size > 10000) {
+      for (const [key, times] of hits) {
+        if (times.every((t) => t <= windowStart)) hits.delete(key);
+      }
+    }
+    next();
+  };
+}
+
+export function securityHeaders(req, res, next) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'"
+  );
+  next();
+}

@@ -259,36 +259,74 @@ const CAUSAS_RAIZ = [
 const NOW = Date.now();
 const H = 3600000;
 
+let tecIds = [];
+let tipoRowIds = [];
+let causaRowIds = [];
+
+function empty(table) {
+  return db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get().c === 0;
+}
+
+function reiniciarIdsReferenciales() {
+  tecIds = db.prepare('SELECT id FROM tecnicos ORDER BY id').all().map((r) => r.id);
+  tipoRowIds = db.prepare('SELECT id FROM tipos_falla ORDER BY id').all().map((r) => r.id);
+  causaRowIds = db.prepare('SELECT id FROM causas_raiz ORDER BY id').all().map((r) => r.id);
+}
+
+function seedUsuarios() {
+  const insUsu = db.prepare('INSERT INTO usuarios (nombre, email, password_hash, rol, creado_en) VALUES (?, ?, ?, ?, ?)');
+  if (process.env.NODE_ENV === 'production') {
+    const email = (process.env.ADMIN_EMAIL ?? '').trim().toLowerCase();
+    const password = process.env.ADMIN_PASSWORD;
+    if (!email || !password) {
+      console.warn('[seed] En producción la base está vacía y no se definieron ADMIN_EMAIL/ADMIN_PASSWORD. No se crearán usuarios de demostración.');
+      return;
+    }
+    insUsu.run('Administrador', email, bcrypt.hashSync(password, 10), 'admin', Date.now());
+    console.warn('[seed] Usuario administrador creado a partir de variables de entorno.');
+    return;
+  }
+  for (const u of USUARIOS) {
+    insUsu.run(u.nombre, u.email, bcrypt.hashSync(u.password, 10), u.rol, Date.now());
+  }
+}
+
+function seedTecnicos() {
+  const insTec = db.prepare('INSERT INTO tecnicos (nombre, rol) VALUES (?, ?)');
+  for (const t of TECNICOS) {
+    insTec.run(t.nombre, t.rol);
+  }
+}
+
+function seedTiposFalla() {
+  const insTipo = db.prepare('INSERT INTO tipos_falla (nombre, descripcion, icono) VALUES (?, ?, ?)');
+  const insConsulta = db.prepare('INSERT INTO consultas_tipo_falla (tipo_falla_id, orden, titulo, pregunta, instruccion, tipo_respuesta, unidad, etiqueta_valor, referencia) VALUES (?,?,?,?,?,?,?,?,?)');
+  for (const tf of TIPOS_FALLA) {
+    const id = Number(insTipo.run(tf.nombre, tf.descripcion, tf.icono).lastInsertRowid);
+    for (const c of tf.consultas) {
+      insConsulta.run(id, c.orden, c.titulo, c.pregunta, c.instruccion, c.tipo_respuesta, c.unidad ?? null, c.etiqueta_valor ?? null, c.referencia ?? null);
+    }
+  }
+}
+
+function seedCausasRaiz() {
+  const insCausa = db.prepare('INSERT INTO causas_raiz (categoria, descripcion) VALUES (?, ?)');
+  for (const c of CAUSAS_RAIZ) {
+    insCausa.run(c.categoria, c.descripcion);
+  }
+}
+
 function nextTicket() {
   const maxNum = db.prepare("SELECT COALESCE(MAX(CAST(SUBSTR(numero_ticket, 5) AS INTEGER)), 0) AS m FROM incidencias").get().m;
   return String(maxNum + 1).padStart(4, '0');
 }
 
-export function seedIfEmpty() {
-  if (db.prepare('SELECT COUNT(*) AS c FROM usuarios').get().c === 0) {
-    const insUsu = db.prepare('INSERT INTO usuarios (nombre, email, password_hash, rol, creado_en) VALUES (?, ?, ?, ?, ?)');
-    for (const u of USUARIOS) {
-      insUsu.run(u.nombre, u.email, bcrypt.hashSync(u.password, 10), u.rol, Date.now());
-    }
+function seedIncidencias() {
+  reiniciarIdsReferenciales();
+  if (tecIds.length === 0 || tipoRowIds.length === 0 || causaRowIds.length === 0) {
+    console.warn('[seed] No se pudieron crear incidencias de ejemplo: faltan referencias (técnicos, tipos de falla o causas raíz).');
+    return;
   }
-
-  if (db.prepare('SELECT COUNT(*) AS c FROM tecnicos').get().c > 0) return;
-
-  const insTec = db.prepare('INSERT INTO tecnicos (nombre, rol) VALUES (?, ?)');
-  const tecIds = TECNICOS.map((t) => Number(insTec.run(t.nombre, t.rol).lastInsertRowid));
-
-  const insTipo = db.prepare('INSERT INTO tipos_falla (nombre, descripcion, icono) VALUES (?, ?, ?)');
-  const insConsulta = db.prepare('INSERT INTO consultas_tipo_falla (tipo_falla_id, orden, titulo, pregunta, instruccion, tipo_respuesta, unidad, etiqueta_valor, referencia) VALUES (?,?,?,?,?,?,?,?,?)');
-  const tipoIds = TIPOS_FALLA.map((tf) => {
-    const id = Number(insTipo.run(tf.nombre, tf.descripcion, tf.icono).lastInsertRowid);
-    for (const c of tf.consultas) {
-      insConsulta.run(id, c.orden, c.titulo, c.pregunta, c.instruccion, c.tipo_respuesta, c.unidad ?? null, c.etiqueta_valor ?? null, c.referencia ?? null);
-    }
-    return id;
-  });
-
-  const insCausa = db.prepare('INSERT INTO causas_raiz (categoria, descripcion) VALUES (?, ?)');
-  const causaIds = CAUSAS_RAIZ.map((c) => Number(insCausa.run(c.categoria, c.descripcion).lastInsertRowid));
 
   const insInc = db.prepare(`INSERT INTO incidencias
     (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, causa_raiz_id, solucion_aplicada, creada_en, resuelta_en)
@@ -336,16 +374,24 @@ export function seedIfEmpty() {
       `3${(300000000 + Math.floor(Math.random() * 899999999))}`,
       `Cra ${10 + (seq % 18)} # ${20 + (seq % 40)}-${10 + (seq % 9)}`,
       barrio,
-      tipoIds[tipo],
+      tipoRowIds[tipo],
       pri,
       est,
       tecIds[tec],
       `Cliente reporta: ${TIPOS_FALLA[tipo].nombre.toLowerCase()}.`,
       `Reporte registrado en PQR. Sintomas declarados por el usuario durante la solicitud de servicio.`,
-      causa == null ? null : causaIds[causa],
+      causa == null ? null : causaRowIds[causa],
       dur == null ? '' : 'Se aplicó protocolo estandarizado; ver respuestas del diagnóstico guiado.',
       creada,
       resuelta
     );
   }
+}
+
+export function seedIfEmpty() {
+  if (empty('usuarios')) seedUsuarios();
+  if (empty('tecnicos')) seedTecnicos();
+  if (empty('tipos_falla')) seedTiposFalla();
+  if (empty('causas_raiz')) seedCausasRaiz();
+  if (empty('incidencias')) seedIncidencias();
 }

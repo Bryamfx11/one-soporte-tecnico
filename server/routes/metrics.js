@@ -3,6 +3,15 @@ import { db } from '../db.js';
 
 export const metricsRouter = express.Router();
 
+const CO_OFFSET_MS = -5 * 3600000; // Bogotá (UTC-5)
+const DIA_MS = 24 * 3600000;
+const DIAS_VENTANA = 30;
+
+function fechaLocalISO(tsLocalMs) {
+  const d = new Date(tsLocalMs);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
 metricsRouter.get('/dashboard', (req, res) => {
   const total = db.prepare('SELECT COUNT(*) AS c FROM incidencias').get().c;
 
@@ -40,17 +49,26 @@ metricsRouter.get('/dashboard', (req, res) => {
     GROUP BY i.tecnico_id ORDER BY total DESC
   `).all();
 
-  // Incidencias últimos 30 días (por día)
+  // Incidencias de los últimos 30 días calendario (zona horaria de Bogotá)
   const now = Date.now();
-  const dias = [];
+  const hoyInicioLocal = Math.floor((now + CO_OFFSET_MS) / DIA_MS) * DIA_MS;
+  const inicioVentanaLocal = hoyInicioLocal - (DIAS_VENTANA - 1) * DIA_MS;
+
   const porDia = db.prepare(`
     SELECT
-      strftime('%Y-%m-%d', datetime(creada_en/1000, 'unixepoch')) AS dia,
+      strftime('%Y-%m-%d', datetime((creada_en + ${-CO_OFFSET_MS})/1000, 'unixepoch')) AS dia,
       COUNT(*) AS c
     FROM incidencias
-    GROUP BY dia ORDER BY dia DESC LIMIT 30
-  `).all();
-  const porDiaMap = Object.fromEntries(porDia.map((r) => [r.dia, r.c]));
+    WHERE creada_en >= ?
+    GROUP BY dia
+  `).all(inicioVentanaLocal - CO_OFFSET_MS);
+  const porDiaMap = Object.fromEntries(porDia.map((r) => [r.dia, Number(r.c)]));
+
+  const dias = [];
+  for (let i = 0; i < DIAS_VENTANA; i++) {
+    const iso = fechaLocalISO(inicioVentanaLocal + i * DIA_MS);
+    dias.push({ dia: iso, c: porDiaMap[iso] ?? 0 });
+  }
 
   res.json({
     total,
@@ -64,6 +82,6 @@ metricsRouter.get('/dashboard', (req, res) => {
     tiempo_por_tipo: tiempoPorTipo,
     top_causas: topCausas,
     por_tecnico: porTecnico,
-    por_dia: porDia.reverse()
+    por_dia: dias
   });
 });

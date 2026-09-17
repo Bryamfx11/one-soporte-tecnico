@@ -2,8 +2,9 @@ import express from 'express';
 import { db } from '../db.js';
 import {
   validateIncidentCreate, validateIncidentUpdate, validateDiagnostico,
-  validateFinalizar, validateIdParam, validationMiddleware
+  validateFinalizar, validateIdParam, validationMiddleware, ESTADOS_TRANSICION
 } from '../validate.js';
+import { requireAdmin } from '../auth.js';
 
 export const incidentsRouter = express.Router();
 
@@ -22,8 +23,12 @@ function validateId(req, res, next) {
   next();
 }
 
+function escapeLike(str) {
+  return str.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 incidentsRouter.get('/', (req, res) => {
-  const { estado, tipo, q, tecnico } = req.query;
+  const { estado, tipo, tecnico } = req.query;
   const where = [];
   const params = [];
 
@@ -43,15 +48,26 @@ incidentsRouter.get('/', (req, res) => {
     if (!Number.isInteger(t) || t < 1) return res.status(400).json({ error: 'tecnico inválido' });
     where.push('i.tecnico_id = ?'); params.push(t);
   }
-  if (q && typeof q === 'string') {
-    const sanitized = q.trim().slice(0, 200);
-    where.push('(i.cliente LIKE ? OR i.numero_ticket LIKE ? OR i.barrio LIKE ?)');
+  const q = typeof req.query.q === 'string' ? req.query.q : '';
+  if (q.trim()) {
+    const sanitized = escapeLike(q.trim().slice(0, 200));
+    where.push("(i.cliente LIKE ? ESCAPE '\\' OR i.numero_ticket LIKE ? ESCAPE '\\' OR i.barrio LIKE ? ESCAPE '\\')");
     params.push(`%${sanitized}%`, `%${sanitized}%`, `%${sanitized}%`);
   }
 
-  const sql = `${INC_SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY i.creada_en DESC`;
-  const rows = db.prepare(sql).all(...params);
-  res.json(rows.map(mapInc));
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const base = `${INC_SELECT} ${whereSql}`;
+
+  const total = db.prepare(`SELECT COUNT(*) AS c FROM incidencias i ${whereSql}`)
+    .get(...params).c;
+
+  const limitRaw = Number.parseInt(req.query.limit, 10);
+  const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 1000) : 100;
+  const offsetRaw = Number.parseInt(req.query.offset, 10);
+  const offset = Number.isInteger(offsetRaw) && offsetRaw > 0 ? offsetRaw : 0;
+
+  const rows = db.prepare(`${base} ORDER BY i.creada_en DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  res.json({ items: rows.map(mapInc), total, limit, offset });
 });
 
 incidentsRouter.get('/:id', validateId, (req, res) => {
@@ -78,9 +94,14 @@ incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, re
   const r = db.prepare(`INSERT INTO incidencias
     (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, creada_en)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    numero_ticket, cliente.trim(), telefono.trim(), direccion.trim(), barrio.trim(),
+    numero_ticket, String(cliente).trim(),
+    typeof telefono === 'string' ? telefono.trim() : '',
+    typeof direccion === 'string' ? direccion.trim() : '',
+    typeof barrio === 'string' ? barrio.trim() : '',
     Number(tipo_falla_id), prioridad, 'nueva', tecnico_id ? Number(tecnico_id) : null,
-    sintomas.trim(), descripcion.trim(), Date.now()
+    typeof sintomas === 'string' ? sintomas.trim() : '',
+    typeof descripcion === 'string' ? descripcion.trim() : '',
+    Date.now()
   );
   const row = db.prepare(`${INC_SELECT} WHERE i.id = ?`).get(Number(r.lastInsertRowid));
   res.status(201).json(mapInc(row));
@@ -90,6 +111,12 @@ incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentU
   const inc = db.prepare('SELECT * FROM incidencias WHERE id = ?').get(Number(req.params.id));
   if (!inc) return res.status(404).json({ error: 'Incidencia no encontrada' });
 
+  if (req.body.estado !== undefined && req.body.estado !== inc.estado) {
+    const permitidos = ESTADOS_TRANSICION[inc.estado] ?? [];
+    if (!permitidos.includes(req.body.estado)) {
+      return res.status(400).json({ error: `Transición de estado no permitida: ${inc.estado} → ${req.body.estado} (use el flujo de finalización para cerrar casos)` });
+    }
+  }
   if (req.body.tipo_falla_id) {
     const tipoExiste = db.prepare('SELECT 1 FROM tipos_falla WHERE id = ?').get(Number(req.body.tipo_falla_id));
     if (!tipoExiste) return res.status(400).json({ error: 'tipo_falla_id no existe' });
@@ -120,12 +147,29 @@ incidentsRouter.post('/:id/diagnostico', validateId, validationMiddleware(valida
   const inc = db.prepare('SELECT * FROM incidencias WHERE id = ?').get(Number(req.params.id));
   if (!inc) return res.status(404).json({ error: 'Incidencia no encontrada' });
 
-  db.prepare('DELETE FROM respuestas_diagnostico WHERE incidencia_id = ?').run(inc.id);
-  const ins = db.prepare('INSERT INTO respuestas_diagnostico (incidencia_id, consulta_id, respuesta, cumple, registrada_en) VALUES (?,?,?,?,?)');
+  // Verificar que todas las consultas correspondan al tipo de falla de la incidencia
+  const consultasTipo = db.prepare('SELECT id FROM consultas_tipo_falla WHERE tipo_falla_id = ?').all(inc.tipo_falla_id);
+  const idsValidos = new Set(consultasTipo.map((c) => c.id));
   for (const r of req.body.respuestas) {
-    ins.run(inc.id, Number(r.consulta_id), (r.respuesta ?? '').toString().slice(0, 500), r.cumple == null ? null : (r.cumple ? 1 : 0), Date.now());
+    if (!idsValidos.has(Number(r.consulta_id))) {
+      return res.status(400).json({ error: `consulta_id ${r.consulta_id} no corresponde al tipo de falla de la incidencia` });
+    }
   }
-  db.prepare("UPDATE incidencias SET estado = 'en_diagnostico' WHERE id = ?").run(inc.id);
+
+  const now = Date.now();
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM respuestas_diagnostico WHERE incidencia_id = ?').run(inc.id);
+    const ins = db.prepare('INSERT INTO respuestas_diagnostico (incidencia_id, consulta_id, respuesta, cumple, registrada_en) VALUES (?,?,?,?,?)');
+    for (const r of req.body.respuestas) {
+      ins.run(inc.id, Number(r.consulta_id), (r.respuesta ?? '').toString().slice(0, 500), r.cumple == null ? null : (r.cumple ? 1 : 0), now);
+    }
+    db.prepare("UPDATE incidencias SET estado = 'en_diagnostico' WHERE id = ?").run(inc.id);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
   res.json({ ok: true, saved: req.body.respuestas.length });
 });
 
@@ -133,20 +177,21 @@ incidentsRouter.post('/:id/finalizar', validateId, validationMiddleware(validate
   const inc = db.prepare('SELECT * FROM incidencias WHERE id = ?').get(Number(req.params.id));
   if (!inc) return res.status(404).json({ error: 'Incidencia no encontrada' });
 
-  if (req.body.causa_raiz_id) {
-    const causaExiste = db.prepare('SELECT 1 FROM causas_raiz WHERE id = ?').get(Number(req.body.causa_raiz_id));
-    if (!causaExiste) return res.status(400).json({ error: 'causa_raiz_id no existe' });
-  }
+  const causaExiste = db.prepare('SELECT 1 FROM causas_raiz WHERE id = ?').get(Number(req.body.causa_raiz_id));
+  if (!causaExiste) return res.status(400).json({ error: 'causa_raiz_id no existe' });
 
-  const { estado, causa_raiz_id = null, solucion_aplicada = '' } = req.body;
-  const fin = estado === 'resuelta' || estado === 'escalada' ? estado : 'resuelta';
+  const estado = req.body.estado === 'escalada' ? 'escalada' : 'resuelta';
+  const solucion = typeof req.body.solucion_aplicada === 'string' ? req.body.solucion_aplicada : '';
+  // Solo las incidencias resueltas cuentan con tiempo de resolución
+  const resueltaEn = estado === 'resuelta' ? Date.now() : null;
   db.prepare(`UPDATE incidencias SET estado = ?, causa_raiz_id = ?, solucion_aplicada = ?, resuelta_en = ? WHERE id = ?`)
-    .run(fin, causa_raiz_id ? Number(causa_raiz_id) : null, solucion_aplicada.slice(0, 2000), Date.now(), inc.id);
+    .run(estado, Number(req.body.causa_raiz_id), solucion.slice(0, 2000), resueltaEn, inc.id);
   const row = db.prepare(`${INC_SELECT} WHERE i.id = ?`).get(Number(req.params.id));
   res.json(mapInc(row));
 });
 
-incidentsRouter.delete('/:id', validateId, (req, res) => {
+// Solo administradores pueden eliminar incidencias
+incidentsRouter.delete('/:id', validateId, requireAdmin, (req, res) => {
   const inc = db.prepare('SELECT * FROM incidencias WHERE id = ?').get(Number(req.params.id));
   if (!inc) return res.status(404).json({ error: 'Incidencia no encontrada' });
   db.prepare('DELETE FROM incidencias WHERE id = ?').run(Number(req.params.id));

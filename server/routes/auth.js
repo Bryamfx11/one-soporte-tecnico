@@ -1,11 +1,20 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../db.js';
-import { requireAuth, signToken } from '../auth.js';
+import { requireAuth, requireAdmin, signToken } from '../auth.js';
 
 export const authRouter = express.Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function asyncHandler(fn) {
+  return (req, res) => {
+    Promise.resolve(fn(req, res)).catch((err) => {
+      console.error('Error en ruta de autenticación:', err);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    });
+  };
+}
 
 function validateLogin(body) {
   const errors = [];
@@ -30,12 +39,12 @@ function validateRegister(body) {
   return errors;
 }
 
-authRouter.post('/login', (req, res) => {
+authRouter.post('/login', asyncHandler(async (req, res) => {
   const errors = validateLogin(req.body ?? {});
   if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
 
   const user = db.prepare('SELECT * FROM usuarios WHERE email = ?').get(String(req.body.email).toLowerCase().trim());
-  if (!user || !bcrypt.compareSync(req.body.password, user.password_hash)) {
+  if (!user || !(await bcrypt.compare(req.body.password, user.password_hash))) {
     return res.status(401).json({ error: 'Credenciales incorrectas' });
   }
 
@@ -44,9 +53,10 @@ authRouter.post('/login', (req, res) => {
     token,
     user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol }
   });
-});
+}));
 
-authRouter.post('/register', (req, res) => {
+// Registro restringido a administradores (el cliente no expone una pantalla de registro)
+authRouter.post('/register', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   const errors = validateRegister(req.body ?? {});
   if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
 
@@ -54,14 +64,13 @@ authRouter.post('/register', (req, res) => {
   const existe = db.prepare('SELECT 1 FROM usuarios WHERE email = ?').get(email);
   if (existe) return res.status(409).json({ error: 'El email ya está registrado' });
 
-  const hash = bcrypt.hashSync(req.body.password, 10);
+  const hash = await bcrypt.hash(req.body.password, 10);
   const r = db.prepare('INSERT INTO usuarios (nombre, email, password_hash, rol, creado_en) VALUES (?, ?, ?, ?, ?)')
     .run(req.body.nombre.trim(), email, hash, 'tecnico', Date.now());
 
   const user = db.prepare('SELECT id, nombre, email, rol FROM usuarios WHERE id = ?').get(Number(r.lastInsertRowid));
-  const token = signToken(user);
-  res.status(201).json({ token, user });
-});
+  res.status(201).json({ user });
+}));
 
 authRouter.get('/me', requireAuth, (req, res) => {
   const user = db.prepare('SELECT id, nombre, email, rol FROM usuarios WHERE id = ?').get(req.user.id);

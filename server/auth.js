@@ -1,10 +1,15 @@
 import jwt from 'jsonwebtoken';
+import { db } from './db.js';
+
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET es obligatorio en producción');
+}
 
 const SECRET = process.env.JWT_SECRET ?? 'one-soporte-dev-secret-cambiar-en-produccion';
 
 export function signToken(user) {
   return jwt.sign(
-    { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol },
+    { id: user.id },
     SECRET,
     { expiresIn: '8h' }
   );
@@ -16,7 +21,12 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Autenticación requerida' });
   }
   try {
-    req.user = jwt.verify(header.slice(7), SECRET);
+    const payload = jwt.verify(header.slice(7), SECRET);
+    const user = db.prepare('SELECT id, nombre, email, rol FROM usuarios WHERE id = ?').get(payload.id);
+    if (!user) {
+      return res.status(401).json({ error: 'Sesión inválida o expirada' });
+    }
+    req.user = user;
     next();
   } catch {
     return res.status(401).json({ error: 'Sesión inválida o expirada' });

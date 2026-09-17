@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { fmtFecha, fmtTiempo, fmtTiempoProm, ESTADOS, PRIORIDADES } from '../utils.js';
+import { fmtFecha, fmtTiempo, ESTADOS, PRIORIDADES } from '../utils.js';
 
 describe('utils', () => {
   test('fmtFecha formatea una fecha', () => {
@@ -27,11 +27,6 @@ describe('utils', () => {
 
   test('fmtTiempo devuelve guion para null', () => {
     expect(fmtTiempo(null)).toBe('—');
-  });
-
-  test('fmtTiempoProm se comporta igual que fmtTiempo', () => {
-    expect(fmtTiempoProm(3600000)).toBe('1.0 h');
-    expect(fmtTiempoProm(null)).toBe('—');
   });
 
   test('ESTADOS contiene los cuatro estados', () => {

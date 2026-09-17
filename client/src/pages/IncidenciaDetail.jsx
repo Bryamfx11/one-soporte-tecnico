@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, User, MapPin, Phone, ClipboardList, Play, Save, X,
-  ChevronLeft, ChevronRight, CheckCircle2, ArrowRightCircle, Wrench
+  User, MapPin, Phone, Play, Save, X,
+  ChevronLeft, ChevronRight, CheckCircle2, Wrench
 } from 'lucide-react';
 import { api, useApi } from '../api.js';
 import { Spinner, Badge } from '../components/ui.jsx';
@@ -14,7 +14,7 @@ export default function IncidenciaDetail() {
   const { data: causas } = useApi(() => api.get('/checklists/causas-raiz'), []);
   const { data: tecnicos } = useApi(() => api.get('/tecnicos'), []);
 
-  const { data: checklist, loading: loadingChecklist } = useApi(
+  const { data: checklist } = useApi(
     () => (inc ? api.get(`/checklists/${inc.tipo_falla_id}`) : Promise.resolve(null)),
     [inc?.tipo_falla_id]
   );
@@ -22,6 +22,7 @@ export default function IncidenciaDetail() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [tecnicoSel, setTecnicoSel] = useState('');
   const [savingTec, setSavingTec] = useState(false);
+  const [tecError, setTecError] = useState('');
 
   useEffect(() => {
     if (inc && (inc.tecnico_id ?? '') !== '') setTecnicoSel(inc.tecnico_id);
@@ -31,14 +32,18 @@ export default function IncidenciaDetail() {
   if (error) return <div className="page alert-error">{error}</div>;
   if (!inc) return <div className="page">Incidencia no encontrada</div>;
 
-  const puedeDiagnosticar = inc.estado === 'nueva' || inc.estado === 'en_diagnostico';
-
   async function asignaTecnico(e) {
     e.preventDefault();
     setSavingTec(true);
-    await api.patch(`/incidents/${inc.id}`, { tecnico_id: tecnicoSel ? Number(tecnicoSel) : null });
-    setSavingTec(false);
-    reload();
+    setTecError('');
+    try {
+      await api.patch(`/incidents/${inc.id}`, { tecnico_id: tecnicoSel ? Number(tecnicoSel) : null });
+      reload();
+    } catch (err) {
+      setTecError(err.message);
+    } finally {
+      setSavingTec(false);
+    }
   }
 
   return (
@@ -80,6 +85,7 @@ export default function IncidenciaDetail() {
             </select>
             <button className="btn btn-secondary" disabled={savingTec}>{savingTec ? '…' : 'Asignar'}</button>
           </form>
+          {tecError && <div className="alert-error" role="alert">{tecError}</div>}
 
           <div className="info-grid">
             <div><span className="label">Creada</span>{fmtFecha(inc.creada_en)}</div>
@@ -145,7 +151,12 @@ export default function IncidenciaDetail() {
 function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
   const existing = useMemo(() => {
     const m = {};
-    for (const r of inc.respuestas ?? []) m[r.consulta_id] = { respuesta: r.respuesta || 'si', cumple: r.cumple };
+    for (const r of inc.respuestas ?? []) {
+      const respuesta = r.respuesta
+        ? r.respuesta
+        : (r.cumple === 1 ? 'si' : r.cumple === 0 ? 'no' : '');
+      m[r.consulta_id] = { respuesta, cumple: r.cumple };
+    }
     return m;
   }, [inc.respuestas]);
 
@@ -158,13 +169,13 @@ function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
   const [guardado, setGuardado] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const timerRef = useRef(null);
+
+  // Evita setState sobre un componente desmontado al cerrar tras guardar
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   const total = consultas.length;
   const actual = consultas[paso];
-
-  function setActual(part) {
-    setResp((r) => ({ ...r, [actual.id]: { ...r[actual.id], ...part } }));
-  }
 
   async function guardar(finalizar) {
     setSaving(true);
@@ -188,7 +199,7 @@ function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
         });
       }
       setGuardado(true);
-      setTimeout(onSaved, 600);
+      timerRef.current = setTimeout(onSaved, 600);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -198,7 +209,7 @@ function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
 
   if (guardado) {
     return (
-      <Modal title={`Diagnóstico ${resultado === 'resuelta' ? 'finalizado' : 'escAlado'}`} onClose={onClose}>
+      <Modal title={`Diagnóstico ${resultado === 'resuelta' ? 'finalizado' : 'escalado'}`} onClose={onClose}>
         <div className="done-box">
           <CheckCircle2 size={42} color="#10b981" />
           <p>Respuestas guardadas y caso {resultado === 'resuelta' ? 'resuelto' : 'escalado'} con éxito.</p>
@@ -239,6 +250,7 @@ function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
                 <button
                   key={val}
                   className={`choice ${(resp[actual.id]?.respuesta ?? '') === val ? 'selected' : ''}`}
+                  aria-pressed={(resp[actual.id]?.respuesta ?? '') === val}
                   onClick={() => setResp((r) => ({ ...r, [actual.id]: { cumple: val === 'si' ? 1 : 0, respuesta: val } }))}
                 >
                   {val === 'si' ? <CheckCircle2 size={18} /> : <X size={18} />}
@@ -248,12 +260,14 @@ function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
             </div>
           ) : (
             <div className="value-box">
-              <label>{actual.etiqueta_valor ?? 'Valor medido'}{actual.unidad ? ` (${actual.unidad})` : ''}</label>
-              <input
-                value={resp[actual.id]?.respuesta ?? ''}
-                onChange={(e) => setResp((r) => ({ ...r, [actual.id]: { ...r[actual.id], respuesta: e.target.value } }))}
-                placeholder={`Ingrese el valor (${actual.unidad ?? 'medida'})`}
-              />
+              <label>
+                <span>{actual.etiqueta_valor ?? 'Valor medido'}{actual.unidad ? ` (${actual.unidad})` : ''}</span>
+                <input
+                  value={resp[actual.id]?.respuesta ?? ''}
+                  onChange={(e) => setResp((r) => ({ ...r, [actual.id]: { ...r[actual.id], respuesta: e.target.value } }))}
+                  placeholder={`Ingrese el valor (${actual.unidad ?? 'medida'})`}
+                />
+              </label>
               <label className="check-label">
                 <input
                   type="checkbox"
@@ -268,22 +282,25 @@ function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
           {paso === total - 1 && (
             <div className="final-box">
               <h4><Wrench size={16} /> Cierre del caso</h4>
-              <label>Resultado*
+              <label>
+                <span>Resultado*</span>
                 <div className="choice-row small">
-                  <button className={`choice ${resultado === 'resuelta' ? 'selected' : ''}`} onClick={() => setResultado('resuelta')}>Resuelta</button>
-                  <button className={`choice ${resultado === 'escalada' ? 'selected' : ''}`} onClick={() => setResultado('escalada')}>Escalada</button>
+                  <button className={`choice ${resultado === 'resuelta' ? 'selected' : ''}`} aria-pressed={resultado === 'resuelta'} onClick={() => setResultado('resuelta')}>Resuelta</button>
+                  <button className={`choice ${resultado === 'escalada' ? 'selected' : ''}`} aria-pressed={resultado === 'escalada'} onClick={() => setResultado('escalada')}>Escalada</button>
                 </div>
               </label>
-              <label>Causa raíz identificada*
+              <label>
+                <span>Causa raíz identificada*</span>
                 <select value={causaId} onChange={(e) => setCausaId(e.target.value)}>
                   <option value="">Seleccione la categoría…</option>
                   {causas?.map((c) => <option key={c.id} value={c.id}>{c.categoria}: {c.descripcion}</option>)}
                 </select>
               </label>
-              <label>Solución aplicada
+              <label>
+                <span>Solución aplicada</span>
                 <textarea rows={2} value={solucion} onChange={(e) => setSolucion(e.target.value)} placeholder="Describa la solución aplicada…" />
               </label>
-              {error && <div className="alert-error">{error}</div>}
+              {error && <div className="alert-error" role="alert">{error}</div>}
               <button className="btn btn-primary btn-block" onClick={() => guardar(true)} disabled={saving}>
                 <CheckCircle2 size={16} /> {saving ? 'Guardando…' : 'Finalizar caso'}
               </button>
@@ -296,15 +313,49 @@ function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {
 }
 
 function Modal({ title, subtitle, onClose, footer, children }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const getFocusables = () =>
+      Array.from(el.querySelectorAll('button, [href], input, select, textarea:not([disabled])'));
+    const first = getFocusables()[0];
+    if (first) first.focus();
+
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab') {
+        const nodes = getFocusables();
+        if (nodes.length === 0) { e.preventDefault(); return; }
+        const firstEl = nodes[0];
+        const lastEl = nodes[nodes.length - 1];
+        if (e.shiftKey && document.activeElement === firstEl) {
+          e.preventDefault();
+          lastEl.focus();
+        } else if (!e.shiftKey && document.activeElement === lastEl) {
+          e.preventDefault();
+          firstEl.focus();
+        }
+      }
+    }
+    el.addEventListener('keydown', onKey);
+    return () => el.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div ref={ref} className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <h3>{title}</h3>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+          <button className="icon-btn" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}

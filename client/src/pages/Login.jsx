@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Wifi, LogIn } from 'lucide-react';
 import { api, setToken, setUser } from '../api.js';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname ?? '/';
   const [form, setForm] = useState({ email: '', password: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -21,10 +23,9 @@ export default function Login() {
       const res = await api.post('/auth/login', form);
       setToken(res.token);
       setUser(res.user);
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message);
-    } finally {
       setSaving(false);
     }
   }
@@ -38,34 +39,33 @@ export default function Login() {
           <p>Plataforma de Soporte Técnico · ONE Telecomunicaciones</p>
         </div>
 
-        <label>Email
+        <label>
+          <span>Email</span>
           <input
             type="email"
             value={form.email}
-            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            onChange={(e) => { setForm((f) => ({ ...f, email: e.target.value })); if (error) setError(''); }}
             placeholder="usuario@one.com"
+            autoComplete="username"
             autoFocus
           />
         </label>
-        <label>Contraseña
+        <label>
+          <span>Contraseña</span>
           <input
             type="password"
             value={form.password}
-            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+            onChange={(e) => { setForm((f) => ({ ...f, password: e.target.value })); if (error) setError(''); }}
             placeholder="••••••••"
+            autoComplete="current-password"
           />
         </label>
 
-        {error && <div className="alert-error">{error}</div>}
+        {error && <div className="alert-error" role="alert">{error}</div>}
 
         <button type="submit" className="btn btn-primary btn-block" disabled={saving}>
           <LogIn size={16} /> {saving ? 'Ingresando…' : 'Iniciar sesión'}
         </button>
-
-        <div className="login-hint">
-          <p><strong>Admin:</strong> admin@one.com / admin123</p>
-          <p><strong>Técnico:</strong> bryam@one.com / tecnico123</p>
-        </div>
       </form>
     </div>
   );

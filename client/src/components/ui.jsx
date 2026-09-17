@@ -6,10 +6,6 @@ export function Badge({ children, color = '#64748b' }) {
   );
 }
 
-export function EstadoBadge({ estado, labels, colors }) {
-  return <Badge color={(colors ?? {})[estado] ?? '#64748b'}>{labels[estado] ?? estado}</Badge>;
-}
-
 export function StatCard({ icon: Icon, label, value, sub, tone = 'primary' }) {
   return (
     <div className={`stat ${tone}`}>
@@ -24,9 +20,9 @@ export function StatCard({ icon: Icon, label, value, sub, tone = 'primary' }) {
 }
 
 export function Spinner() {
-  return <div className="spinner" />;
+  return <div className="spinner" role="status" aria-label="Cargando" />;
 }
 
 export function Empty({ message }) {
-  return <div className="empty">{message}</div>;
+  return <div className="empty" role="note">{message}</div>;
 }

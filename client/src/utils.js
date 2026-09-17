@@ -38,11 +38,3 @@ export function fmtTiempo(ms) {
   if (horas < 24) return `${horas.toFixed(1)} h`;
   return `${(horas / 24).toFixed(1)} días`;
 }
-
-export function fmtTiempoProm(ms) {
-  if (ms == null) return '—';
-  const horas = ms / 3600000;
-  if (horas < 1) return `${Math.round(horas * 60)} min`;
-  if (horas < 24) return `${horas.toFixed(1)} h`;
-  return `${(horas / 24).toFixed(1)} días`;
-}

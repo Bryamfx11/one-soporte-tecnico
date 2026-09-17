@@ -12,11 +12,19 @@ checklistsRouter.get('/causas-raiz', (req, res) => {
 // Todos los tipos de falla con sus consultas (base de conocimiento)
 checklistsRouter.get('/', (req, res) => {
   const tipos = db.prepare('SELECT * FROM tipos_falla ORDER BY id').all();
-  const result = tipos.map((tipo) => ({
-    ...tipo,
-    consultas: db.prepare('SELECT * FROM consultas_tipo_falla WHERE tipo_falla_id = ? ORDER BY orden').all(tipo.id)
-  }));
-  res.json(result);
+  const consultas = db.prepare('SELECT * FROM consultas_tipo_falla ORDER BY tipo_falla_id, orden').all();
+  const porTipo = new Map();
+  for (const c of consultas) {
+    if (!porTipo.has(c.tipo_falla_id)) porTipo.set(c.tipo_falla_id, []);
+    porTipo.get(c.tipo_falla_id).push(c);
+  }
+  res.json(tipos.map((tipo) => ({ ...tipo, consultas: porTipo.get(tipo.id) ?? [] })));
+});
+
+// Lista ligera de tipos (para dropdowns y filtros)
+checklistsRouter.get('/tipos', (req, res) => {
+  const tipos = db.prepare('SELECT id, nombre, descripcion, icono FROM tipos_falla ORDER BY id').all();
+  res.json(tipos);
 });
 
 // Checklist de un tipo específico (para diagnóstico guiado)

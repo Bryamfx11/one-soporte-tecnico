@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const BASE = '/api';
 const TOKEN_KEY = 'one_soporte_token';
@@ -27,13 +27,11 @@ export function setUser(user) {
 
 async function request(path, options = {}) {
   const token = getToken();
-  const res = await fetch(BASE + path, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    ...options
-  });
+  const headers = {
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+  const res = await fetch(BASE + path, { headers, ...options });
   if (res.status === 401) {
     setToken(null);
     setUser(null);
@@ -62,27 +60,31 @@ export function useApi(fn, deps = []) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     let active = true;
+    mountedRef.current = true;
     setLoading(true);
     setError(null);
     fn()
       .then((d) => { if (active) setData(d); })
       .catch((e) => { if (active) setError(e.message); })
       .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    return () => { active = false; mountedRef.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  const reload = () => {
+  const reload = useCallback(() => {
+    if (!mountedRef.current) return Promise.resolve(data);
     setLoading(true);
     setError(null);
     return fn()
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
+      .then((d) => { if (mountedRef.current) setData(d); })
+      .catch((e) => { if (mountedRef.current) setError(e.message); })
+      .finally(() => { if (mountedRef.current) setLoading(false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 
   return { data, loading, error, reload, setData };
 }

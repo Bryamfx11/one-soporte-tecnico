@@ -7,7 +7,7 @@ import { PRIORIDADES } from '../utils.js';
 
 export default function NuevaIncidencia() {
   const navigate = useNavigate();
-  const { data: tipos, loading: loadingTipos } = useApi(() => api.get('/checklists'), []);
+  const { data: tipos, loading: loadingTipos, error: errorTipos } = useApi(() => api.get('/checklists/tipos'), []);
   const { data: tecnicos } = useApi(() => api.get('/tecnicos'), []);
 
   const [form, setForm] = useState({ cliente: '', telefono: '', direccion: '', barrio: '', tipo_falla_id: '', prioridad: 'media', tecnico_id: '', sintomas: '', descripcion: '' });
@@ -38,6 +38,7 @@ export default function NuevaIncidencia() {
   }
 
   if (loadingTipos) return <div className="page"><Spinner /></div>;
+  if (errorTipos) return <div className="page alert-error" role="alert">{errorTipos}</div>;
 
   return (
     <div className="page">

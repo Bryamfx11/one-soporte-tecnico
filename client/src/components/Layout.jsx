@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, Workflow, LogOut, Menu, X, User } from 'lucide-react';
 import { getUser, setToken, setUser } from '../api.js';
@@ -21,10 +21,20 @@ export default function Layout() {
     navigate('/login');
   }
 
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
   return (
     <div className="layout">
+      <a className="skip-link" href="#main-content">Saltar al contenido</a>
       <div className="topbar">
-        <button className="icon-btn" onClick={() => setOpen(!open)} aria-label="Menú">
+        <button className="icon-btn" onClick={() => setOpen(!open)} aria-label="Abrir menú" aria-expanded={open} aria-controls="sidebar-nav">
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
         <div className="topbar-brand">
@@ -52,7 +62,7 @@ export default function Layout() {
           </div>
         </div>
 
-        <nav className="nav">
+        <nav id="sidebar-nav" className="nav">
           {NAV.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => setOpen(false)}>
               <Icon size={18} />
@@ -73,7 +83,7 @@ export default function Layout() {
 
       {open && <div className="overlay-mobile" onClick={() => setOpen(false)} />}
 
-      <main className="content">
+      <main id="main-content" className="content">
         <Outlet />
       </main>
     </div>
