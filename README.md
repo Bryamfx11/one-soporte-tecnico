@@ -39,7 +39,8 @@ El proyecto implementa los tres objetivos específicos del plan:
 
 ## ✨ Funcionalidades
 
-- **Autenticación**: login con JWT, roles (admin/técnico) y rutas protegidas
+- **Autenticación**: login con JWT, roles (admin/técnico), rutas protegidas y registro exclusivo de administradores
+- **Seguridad**: rate limiting por ruta, cabeceras de seguridad (CSP, etc.), CORS restringido por orígenes permitidos y contraseñas cifradas con bcrypt
 - **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico
 - **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio, flujo de ciclo de vida
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
@@ -85,14 +86,24 @@ npm run dev
 - **API:** http://localhost:4000
 - **Cliente:** http://localhost:5173 (proxy `/api` hacia la API)
 
-### 🔐 Credenciales de demostración
+### 🔐 Credenciales de demostración (entorno de desarrollo)
 
 | Rol | Email | Contraseña |
 |---|---|---|
 | Administrador | `admin@one.com` | `admin123` |
 | Técnico | `bryam@one.com` | `tecnico123` |
 
-> En producción defina la variable de entorno `JWT_SECRET` con un valor seguro.
+> Estas credenciales se crean automáticamente en **desarrollo** al iniciar la API
+> (el seed no se ejecuta sobre datos ya existentes).
+
+> En **producción** el seed solo crea el administrador, y las credenciales se definen
+> mediante variables de entorno:
+
+| Variable | Descripción |
+|---|---|
+| `JWT_SECRET` | Obligatoria en producción; la API no arranca si falta |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales del administrador que crea el seed |
+| `ALLOWED_ORIGINS` | Orígenes de CORS permitidos (separados por coma) |
 
 > La primera vez se crea `server/one.db` automáticamente con datos de ejemplo
 > (5 tipos de falla FTTH, 24 incidencias, checklists de diagnóstico, categorías Ishikawa).
@@ -111,10 +122,17 @@ npm run test:client   # Componentes y utilidades (Vitest + Testing Library)
 
 ## 🏭 Producción
 
+La API se empaqueta y despliega con **PM2** (archivo `ecosystem.config.cjs`).
+
 ```bash
-npm run build              # construye el cliente en client/dist
-cd server && node index.js  # sirve API + cliente estático en http://localhost:4000
+npm run build                                    # construye el cliente en client/dist
+pm2 start ecosystem.config.cjs                   # inicia la API en producción (script server/index.js)
 ```
+
+Configure previamente las variables de entorno descritas arriba
+(`JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` y opcionalmente `ALLOWED_ORIGINS`).
+
+Límites por omisión de la API: **300 peticiones/min** en `/api` y **10 peticiones/min** en `/api/auth`.
 
 ---
 
@@ -129,6 +147,7 @@ one-soporte-tecnico/
 │   ├── app.js                           # Configuración de la app Express
 │   ├── db.js                            # Esquema de base de datos (SQLite)
 │   ├── auth.js                          # JWT y middleware de autenticación
+│   ├── security.js                      # Rate limiting y cabeceras de seguridad
 │   ├── validate.js                      # Validación de peticiones
 │   ├── seed.js                          # Datos de ejemplo (checklists FTTH, causas)
 │   ├── routes/
