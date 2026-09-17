@@ -97,6 +97,69 @@ test('GET /api/tecnicos devuelve técnicos', async () => {
   assert.ok(res.body.length >= 6);
 });
 
+test('PATCH /api/tecnicos/:id sin token responde 401', async () => {
+  const res = await request(app).patch('/api/tecnicos/1').send({ nombre: 'Nuevo Nombre' });
+  assert.equal(res.status, 401);
+});
+
+test('PATCH /api/tecnicos/:id con rol técnico responde 403', async () => {
+  const res = await request(app)
+    .patch('/api/tecnicos/1')
+    .set('Authorization', `Bearer ${tecnicoToken}`)
+    .send({ nombre: 'Nuevo Nombre' });
+  assert.equal(res.status, 403);
+});
+
+test('PATCH /api/tecnicos/:id actualiza técnico (admin)', async () => {
+  const res = await request(app)
+    .patch('/api/tecnicos/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Yudy Garcia Actualizada', rol: 'Gerente General' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.nombre, 'Yudy Garcia Actualizada');
+  assert.equal(res.body.rol, 'Gerente General');
+});
+
+test('PATCH /api/tecnicos/:id rechaza campo no permitido', async () => {
+  const res = await request(app)
+    .patch('/api/tecnicos/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ email: 'x@y.com' });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/tecnicos/:id rechaza cuerpo sin campos', async () => {
+  const res = await request(app)
+    .patch('/api/tecnicos/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({});
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/tecnicos/:id rechaza nombre corto', async () => {
+  const res = await request(app)
+    .patch('/api/tecnicos/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'A' });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/tecnicos/:id inexistente responde 404', async () => {
+  const res = await request(app)
+    .patch('/api/tecnicos/99999')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Nuevo Nombre' });
+  assert.equal(res.status, 404);
+});
+
+test('PATCH /api/tecnicos/:id con id inválido responde 400', async () => {
+  const res = await request(app)
+    .patch('/api/tecnicos/abc')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Nuevo Nombre' });
+  assert.equal(res.status, 400);
+});
+
 test('GET /api/checklists/causas-raiz devuelve causas (no sombreada por /:tipoId)', async () => {
   const res = await request(app).get('/api/checklists/causas-raiz').set('Authorization', `Bearer ${adminToken}`);
   assert.equal(res.status, 200);
@@ -257,6 +320,47 @@ test('finalizar como escalada no marca resuelta_en', async () => {
   assert.equal(res.body.estado, 'escalada');
   assert.equal(res.body.resuelta_en, null);
   assert.equal(res.body.tiempo_ms, null);
+});
+
+test('POST /api/incidents/:id/diagnostico en caso cerrado responde 409', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cerrado Diag', tipo_falla_id: 1 });
+  const causas = await request(app).get('/api/checklists/causas-raiz').set('Authorization', `Bearer ${adminToken}`);
+  await request(app)
+    .post(`/api/incidents/${creado.body.id}/finalizar`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ estado: 'resuelta', causa_raiz_id: causas.body[0].id });
+
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/diagnostico`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ respuestas: [{ consulta_id: 1, respuesta: 'si', cumple: 1 }] });
+  assert.equal(res.status, 409);
+  const detalle = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(detalle.body.estado, 'resuelta');
+});
+
+test('POST /api/incidents/:id/finalizar en caso ya cerrado responde 409', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cerrado Fin', tipo_falla_id: 1 });
+  const causas = await request(app).get('/api/checklists/causas-raiz').set('Authorization', `Bearer ${adminToken}`);
+  await request(app)
+    .post(`/api/incidents/${creado.body.id}/finalizar`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ estado: 'escalada', causa_raiz_id: causas.body[0].id });
+
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/finalizar`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ estado: 'resuelta', causa_raiz_id: causas.body[0].id });
+  assert.equal(res.status, 409);
+  const detalle = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(detalle.body.estado, 'escalada');
+  assert.equal(detalle.body.resuelta_en, null);
 });
 
 test('DELETE /api/incidents/:id con rol técnico responde 403', async () => {

@@ -57,6 +57,10 @@ function idValido(valor) {
   return Number.isInteger(n) && n >= 1 ? n : null;
 }
 
+function esCasoCerrado(estado) {
+  return estado === 'resuelta' || estado === 'escalada';
+}
+
 function escaparLike(str) {
   return str.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
@@ -205,6 +209,10 @@ incidentsRouter.post('/:id/diagnostico', validateId, validationMiddleware(valida
   const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
   if (!inc) return;
 
+  if (esCasoCerrado(inc.estado)) {
+    return res.status(409).json({ error: 'El caso está cerrado y no puede reabrirse' });
+  }
+
   // Verificar que todas las consultas correspondan al tipo de falla de la incidencia
   const consultasTipo = db.prepare('SELECT id FROM consultas_tipo_falla WHERE tipo_falla_id = ?').all(inc.tipo_falla_id);
   const idsValidos = new Set(consultasTipo.map((c) => c.id));
@@ -234,6 +242,10 @@ incidentsRouter.post('/:id/diagnostico', validateId, validationMiddleware(valida
 incidentsRouter.post('/:id/finalizar', validateId, validationMiddleware(validateFinalizar), (req, res) => {
   const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
   if (!inc) return;
+
+  if (esCasoCerrado(inc.estado)) {
+    return res.status(409).json({ error: 'El caso ya está cerrado' });
+  }
 
   if (!existeCausaRaiz(req.body.causa_raiz_id)) return res.status(400).json({ error: 'causa_raiz_id no existe' });
 
