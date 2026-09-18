@@ -194,7 +194,28 @@ test('GET /api/incidents devuelve lista paginada con total', async () => {
 test('GET /api/incidents busca con q escapando comodines de LIKE', async () => {
   const res = await request(app).get('/api/incidents?q=%25').set('Authorization', `Bearer ${adminToken}`);
   assert.equal(res.status, 200);
-  assert.ok(Array.isArray(res.body.items));
+  assert.equal(res.body.total, 0);
+});
+
+test('GET /api/incidents filtra por rango de fechas', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cliente Fechas', tipo_falla_id: 1 });
+  assert.equal(creado.status, 201);
+
+  const hoy = new Date().toISOString().slice(0, 10);
+  const hoyRes = await request(app).get(`/api/incidents?desde=${hoy}&hasta=${hoy}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(hoyRes.status, 200);
+  assert.ok(hoyRes.body.items.some((i) => i.id === creado.body.id));
+
+  const pasado = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+  const pasadoRes = await request(app).get(`/api/incidents?desde=${pasado}&hasta=${pasado}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(pasadoRes.status, 200);
+  assert.ok(pasadoRes.body.items.every((i) => i.id !== creado.body.id));
+
+  const invalido = await request(app).get('/api/incidents?desde=no-es-fecha').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(invalido.status, 400);
 });
 
 test('POST /api/incidents crea incidencia', async () => {

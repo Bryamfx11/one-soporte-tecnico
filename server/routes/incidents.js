@@ -63,6 +63,13 @@ function idValido(valor) {
   return Number.isInteger(n) && n >= 1 ? n : null;
 }
 
+function parseFechaLocal(str) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(str));
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+}
+
 function esCasoCerrado(estado) {
   return estado === 'resuelta' || estado === 'escalada';
 }
@@ -135,6 +142,16 @@ incidentsRouter.get('/', (req, res) => {
     const tecnicoId = idValido(tecnico);
     if (tecnicoId === null) return res.status(400).json({ error: 'tecnico inválido' });
     where.push('i.tecnico_id = ?'); params.push(tecnicoId);
+  }
+  if (req.query.desde !== undefined && req.query.desde !== '') {
+    const desdeMs = parseFechaLocal(req.query.desde);
+    if (desdeMs === null) return res.status(400).json({ error: 'desde inválido (formato YYYY-MM-DD)' });
+    where.push('i.creada_en >= ?'); params.push(desdeMs);
+  }
+  if (req.query.hasta !== undefined && req.query.hasta !== '') {
+    const hastaMs = parseFechaLocal(req.query.hasta);
+    if (hastaMs === null) return res.status(400).json({ error: 'hasta inválido (formato YYYY-MM-DD)' });
+    where.push('i.creada_en < ?'); params.push(hastaMs + 86400000);
   }
   const q = typeof req.query.q === 'string' ? req.query.q : '';
   if (q.trim()) {

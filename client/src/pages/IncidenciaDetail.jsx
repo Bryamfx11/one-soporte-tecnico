@@ -7,6 +7,7 @@ import {
 import { api, getUser, useApi } from '../api.js';
 import { Badge, ConfirmDialog, Modal, Skeleton, SkeletonText } from '../components/ui.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { useDirtyGuard } from '../hooks/useDirtyGuard.js';
 import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiempo } from '../utils.js';
 
 export default function IncidenciaDetail() {
@@ -29,6 +30,8 @@ export default function IncidenciaDetail() {
   const [tecError, setTecError] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  useDirtyGuard(wizardOpen);
 
   const tecnicoActivo = inc?.tecnico_id ?? '';
 

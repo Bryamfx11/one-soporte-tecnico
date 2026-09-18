@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Plus, MapPin, Wifi, X } from 'lucide-react';
 import { api, useApi } from '../api.js';
 import { SkeletonTable, Empty } from '../components/ui.jsx';
@@ -7,44 +7,75 @@ import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiemp
 
 export default function Incidencias() {
   const navigate = useNavigate();
-  const [estado, setEstado] = useState('');
-  const [tipo, setTipo] = useState('');
-  const [q, setQ] = useState('');
-  const [debouncedQ, setDebouncedQ] = useState('');
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const estado = searchParams.get('estado') ?? '';
+  const tipo = searchParams.get('tipo') ?? '';
+  const desde = searchParams.get('desde') ?? '';
+  const hasta = searchParams.get('hasta') ?? '';
+  const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
   const [pageSize, setPageSize] = useState(10);
 
+  const [q, setQ] = useState(() => searchParams.get('q') ?? '');
+  const [debouncedQ, setDebouncedQ] = useState(q);
+
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 350);
     return () => clearTimeout(t);
   }, [q]);
 
   useEffect(() => {
-    setPage(1);
-  }, [estado, tipo, debouncedQ, pageSize]);
+    const next = new URLSearchParams(searchParams);
+    if (debouncedQ) next.set('q', debouncedQ);
+    else next.delete('q');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQ]);
+
+  useEffect(() => {
+    const urlQ = searchParams.get('q') ?? '';
+    if (urlQ !== q) setQ(urlQ);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  function changeFilter(key, value) {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    next.delete('page');
+    setSearchParams(next, { replace: true });
+  }
+
+  function changePage(p) {
+    const next = new URLSearchParams(searchParams);
+    if (p > 1) next.set('page', String(p));
+    else next.delete('page');
+    setSearchParams(next, { replace: true });
+  }
+
+  function limpiarFiltros() {
+    setQ('');
+    setDebouncedQ('');
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }
 
   const params = new URLSearchParams();
   if (estado) params.set('estado', estado);
   if (tipo) params.set('tipo', tipo);
   if (debouncedQ) params.set('q', debouncedQ);
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
   params.set('limit', pageSize);
   params.set('offset', (page - 1) * pageSize);
 
   const { data: incidencias, loading, error } = useApi(
     () => api.get(`/incidents?${params.toString()}`),
-    [estado, tipo, debouncedQ, page, pageSize]
+    [estado, tipo, desde, hasta, debouncedQ, page, pageSize]
   );
   const { data: tipos } = useApi(() => api.get('/checklists/tipos'), []);
 
   const items = incidencias?.items ?? [];
   const total = incidencias?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  function limpiarFiltros() {
-    setEstado('');
-    setTipo('');
-    setQ('');
-  }
 
   return (
     <div className="page">
@@ -66,15 +97,17 @@ export default function Incidencias() {
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <select aria-label="Filtrar por estado" value={estado} onChange={(e) => setEstado(e.target.value)}>
+        <select aria-label="Filtrar por estado" value={estado} onChange={(e) => changeFilter('estado', e.target.value)}>
           <option value="">Estado: todos</option>
           {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select aria-label="Filtrar por tipo de falla" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+        <select aria-label="Filtrar por tipo de falla" value={tipo} onChange={(e) => changeFilter('tipo', e.target.value)}>
           <option value="">Tipo de falla: todos</option>
           {tipos?.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
         </select>
-        {(estado || tipo || q) && (
+        <label className="fecha-rango">Desde<input type="date" aria-label="Desde" value={desde} onChange={(e) => changeFilter('desde', e.target.value)} /></label>
+        <label className="fecha-rango">Hasta<input type="date" aria-label="Hasta" value={hasta} onChange={(e) => changeFilter('hasta', e.target.value)} /></label>
+        {(estado || tipo || q || desde || hasta) && (
           <button className="btn btn-ghost" onClick={limpiarFiltros}><X size={14} /> Limpiar</button>
         )}
       </div>
@@ -132,9 +165,9 @@ export default function Incidencias() {
 
       {!loading && !error && total > 0 && (
         <div className="pagination" role="navigation" aria-label="Paginación">
-          <button className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹ Anterior</button>
+          <button className="btn btn-ghost" disabled={page <= 1} onClick={() => changePage(page - 1)}>‹ Anterior</button>
           <span className="pagination-info">Página {page} de {totalPages} · {total} registros</span>
-          <button className="btn btn-ghost" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente ›</button>
+          <button className="btn btn-ghost" disabled={page >= totalPages} onClick={() => changePage(page + 1)}>Siguiente ›</button>
           <select className="pagination-size" aria-label="Registros por página" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
             {[10, 25, 50, 100].map((s) => <option key={s} value={s}>{s} por página</option>)}
           </select>

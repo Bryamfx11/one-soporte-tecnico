@@ -4,6 +4,7 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { api, useApi } from '../api.js';
 import { Skeleton, SkeletonText } from '../components/ui.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { useDirtyGuard } from '../hooks/useDirtyGuard.js';
 import { PRIORIDADES } from '../utils.js';
 
 export default function NuevaIncidencia() {
@@ -15,6 +16,9 @@ export default function NuevaIncidencia() {
   const [form, setForm] = useState({ cliente: '', telefono: '', direccion: '', barrio: '', tipo_falla_id: '', prioridad: 'media', tecnico_id: '', sintomas: '', descripcion: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const dirty = Object.values(form).some((v) => String(v).trim() !== '');
+  useDirtyGuard(dirty);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
