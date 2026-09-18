@@ -42,7 +42,12 @@ El proyecto implementa los tres objetivos específicos del plan:
 - **Autenticación**: login con JWT, roles (admin/técnico), rutas protegidas y registro exclusivo de administradores; verificación de contraseña con tiempos constantes (evita enumerar qué correos están registrados)
 - **Seguridad**: secreto JWT aleatorio por arranque cuando no viene del entorno (en desarrollo) y obligatorio en producción, rate limiting por ruta, cabeceras de seguridad (CSP, etc.), CORS restringido por orígenes permitidos y contraseñas cifradas con bcrypt
 - **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico con indicador visual de último refresco
-- **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio, flujo de ciclo de vida; número de ticket con reintento ante colisiones y casos cerrados (resuelta/escalada) que no se reabren por API
+- **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio y **rango de fechas**, flujo de ciclo de vida; número de ticket con reintento ante colisiones y casos cerrados (resuelta/escalada) que no se reabren por API
+- **Filtros compartibles**: los filtros y la página de Incidencias viven en la URL, por lo que se pueden compartir, marcar como favoritos y conservar al recargar
+- **Aviso de cambios sin guardar**: los formularios (nueva incidencia y wizard de diagnóstico) advierten antes de cerrar o recargar la pestaña
+- **Pendientes a la vista**: badge en el menú con el número de casos sin cerrar (nuevas + en diagnóstico), actualizado en tiempo real por SSE
+- **Exportación con confirmación**: al descargar reportes CSV (Dashboard e Indicadores) se muestra una notificación de éxito
+- **Estados vacíos**: las gráficas muestran un mensaje claro cuando aún no hay datos, en lugar de un lienzo en blanco
 - **Auditoría por incidencia**: tabla `actividad` con cada movimiento (creación, edición, diagnóstico, cierre y eliminación) con usuario, acción y detalle
 - **Gestión de usuarios (admin)**: listado y activación/desactivación de cuentas; las cuentas desactivadas no pueden ingresar ni mantener sesión
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
@@ -190,6 +195,7 @@ one-soporte-tecnico/
         │   ├── Toast.jsx                # Notificaciones (contexto)
         │   └── ui.jsx                   # Componentes reutilizables
         ├── hooks/
+        │   ├── useDirtyGuard.js         # Aviso de cambios sin guardar (beforeunload)
         │   ├── useFocusTrap.js          # Trampa de foco para modales
         │   └── useTheme.js              # Tema claro/oscuro persistente
         ├── test/                        # Pruebas de componentes
