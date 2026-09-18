@@ -62,6 +62,9 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   if (!user || !ok) {
     return res.status(401).json({ error: 'Credenciales incorrectas' });
   }
+  if (user.activo === 0) {
+    return res.status(401).json({ error: 'Cuenta desactivada' });
+  }
 
   const token = signToken(user);
   res.json({

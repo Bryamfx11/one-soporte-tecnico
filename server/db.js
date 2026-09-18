@@ -91,7 +91,23 @@ CREATE INDEX IF NOT EXISTS idx_incidentes_resuelta ON incidencias(resuelta_en);
 CREATE INDEX IF NOT EXISTS idx_incidentes_causa ON incidencias(causa_raiz_id);
 CREATE INDEX IF NOT EXISTS idx_respuestas_inc ON respuestas_diagnostico(incidencia_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_incidentes_ticket ON incidencias(numero_ticket);
+
+CREATE TABLE IF NOT EXISTS actividad (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  incidencia_id INTEGER NOT NULL REFERENCES incidencias(id) ON DELETE CASCADE,
+  usuario TEXT NOT NULL,
+  accion TEXT NOT NULL,
+  detalle TEXT NOT NULL DEFAULT '',
+  creada_en INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_actividad_inc ON actividad(incidencia_id);
 `);
+
+const usuarioCols = db.prepare("SELECT name FROM pragma_table_info('usuarios')").all().map((c) => c.name);
+if (!usuarioCols.includes('activo')) {
+  db.exec('ALTER TABLE usuarios ADD COLUMN activo INTEGER NOT NULL DEFAULT 1');
+}
 
 seedIfEmpty();
 

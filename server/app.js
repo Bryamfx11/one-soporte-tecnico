@@ -12,6 +12,7 @@ import { incidentsRouter } from './routes/incidents.js';
 import { checklistsRouter } from './routes/checklists.js';
 import { metricsRouter } from './routes/metrics.js';
 import { tecnicosRouter } from './routes/tecnicos.js';
+import { usuariosRouter } from './routes/usuarios.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const app = express();
@@ -30,6 +31,16 @@ app.use(corsMiddleware(ALLOWED_ORIGINS));
 
 app.use(securityHeaders);
 
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    const inicio = Date.now();
+    res.on('finish', () => {
+      console.log(`${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - inicio}ms`);
+    });
+    next();
+  });
+}
+
 app.use('/api', rateLimit({ windowMs: 60000, max: 300 }));
 app.use('/api/auth', rateLimit({ windowMs: 60000, max: 10, message: 'Demasiados intentos de autenticación, intente más tarde' }));
 
@@ -45,6 +56,7 @@ app.use('/api/incidents', requireAuth, incidentsRouter);
 app.use('/api/checklists', requireAuth, checklistsRouter);
 app.use('/api/metrics', requireAuth, metricsRouter);
 app.use('/api/tecnicos', requireAuth, tecnicosRouter);
+app.use('/api/usuarios', requireAuth, usuariosRouter);
 app.get('/api/sse/events', requireAuth, sseHandler);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Ruta de API no encontrada' }));
 

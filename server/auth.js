@@ -27,9 +27,12 @@ export function requireAuth(req, res, next) {
   }
   try {
     const payload = jwt.verify(header.slice(7), SECRET);
-    const user = db.prepare('SELECT id, nombre, email, rol FROM usuarios WHERE id = ?').get(payload.id);
+    const user = db.prepare('SELECT id, nombre, email, rol, activo FROM usuarios WHERE id = ?').get(payload.id);
     if (!user) {
       return res.status(401).json({ error: 'Sesión inválida o expirada' });
+    }
+    if (user.activo === 0) {
+      return res.status(401).json({ error: 'Usuario desactivado' });
     }
     req.user = user;
     next();

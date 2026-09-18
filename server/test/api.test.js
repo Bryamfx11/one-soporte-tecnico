@@ -393,3 +393,126 @@ test('GET /api/incidents/:id con id inválido responde 400', async () => {
   const res = await request(app).get('/api/incidents/abc').set('Authorization', `Bearer ${adminToken}`);
   assert.equal(res.status, 400);
 });
+
+test('GET /api/incidents/:id incluye historial de actividad', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cliente Auditoría', tipo_falla_id: 1 });
+  assert.equal(creado.status, 201);
+
+  const detalle1 = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(detalle1.status, 200);
+  assert.ok(Array.isArray(detalle1.body.actividad));
+  assert.equal(detalle1.body.actividad.length, 1);
+  assert.equal(detalle1.body.actividad[0].accion, 'creada');
+
+  await request(app)
+    .patch(`/api/incidents/${creado.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ prioridad: 'alta' });
+
+  const detalle2 = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.deepEqual(detalle2.body.actividad.map((a) => a.accion), ['actualizada', 'creada']);
+  assert.ok(detalle2.body.actividad[0].detalle.includes('prioridad'));
+});
+
+test('POST /api/incidents/:id/diagnostico registra actividad', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cliente Diagnóstico', tipo_falla_id: 1 });
+  const consultas = await request(app).get('/api/checklists/1').set('Authorization', `Bearer ${adminToken}`);
+  const respuestas = consultas.body.consultas.map((c) => ({ consulta_id: c.id, respuesta: 'Sí', cumple: true }));
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/diagnostico`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ respuestas });
+  assert.equal(res.status, 200);
+  const detalle = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.ok(detalle.body.actividad.some((a) => a.accion === 'diagnostico'));
+});
+
+test('POST /api/incidents/:id/finalizar registra el cierre en la actividad', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cliente Cierre', tipo_falla_id: 1 });
+  const causas = await request(app).get('/api/checklists/causas-raiz').set('Authorization', `Bearer ${adminToken}`);
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/finalizar`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ estado: 'resuelta', causa_raiz_id: causas.body[0].id });
+  assert.equal(res.status, 200);
+  const detalle = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(detalle.body.actividad[0].accion, 'cierre');
+});
+
+test('GET /api/usuarios sin token responde 401', async () => {
+  const res = await request(app).get('/api/usuarios');
+  assert.equal(res.status, 401);
+});
+
+test('GET /api/usuarios con rol técnico responde 403', async () => {
+  const res = await request(app).get('/api/usuarios').set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(res.status, 403);
+});
+
+test('GET /api/usuarios devuelve lista con activo (admin)', async () => {
+  const res = await request(app).get('/api/usuarios').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+  assert.ok(res.body.some((u) => u.rol === 'admin'));
+  assert.ok(res.body.every((u) => typeof u.activo === 'number'));
+});
+
+test('PATCH /api/usuarios/:id desactiva y bloquea sesión vigente (admin)', async () => {
+  const users = await request(app).get('/api/usuarios').set('Authorization', `Bearer ${adminToken}`);
+  const tec = users.body.find((u) => u.email === 'bryam@one.com');
+  assert.ok(tec);
+
+  const desactivar = await request(app)
+    .patch(`/api/usuarios/${tec.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ activo: 0 });
+  assert.equal(desactivar.status, 200);
+  assert.equal(desactivar.body.activo, 0);
+
+  const bloqueada = await request(app).get('/api/incidents').set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(bloqueada.status, 401);
+
+  const loginBloqueado = await request(app)
+    .post('/api/auth/login')
+    .send({ email: 'bryam@one.com', password: 'tecnico123' });
+  assert.equal(loginBloqueado.status, 401);
+
+  await request(app)
+    .patch(`/api/usuarios/${tec.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ activo: 1 });
+  const restaurada = await request(app).get('/api/incidents').set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(restaurada.status, 200);
+});
+
+test('PATCH /api/usuarios/:id no permite desactivar la propia cuenta', async () => {
+  const users = await request(app).get('/api/usuarios').set('Authorization', `Bearer ${adminToken}`);
+  const admin = users.body.find((u) => u.rol === 'admin');
+  const res = await request(app)
+    .patch(`/api/usuarios/${admin.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ activo: 0 });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/usuarios/:id rechaza activo no 0/1 y id inválido', async () => {
+  const noBool = await request(app)
+    .patch('/api/usuarios/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ activo: 'si' });
+  assert.equal(noBool.status, 400);
+
+  const badId = await request(app)
+    .patch('/api/usuarios/abc')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ activo: 1 });
+  assert.equal(badId.status, 400);
+});

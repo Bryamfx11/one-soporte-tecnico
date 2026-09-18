@@ -27,6 +27,11 @@ function validateId(req, res, next) {
   next();
 }
 
+function registrarActividad(incidenciaId, usuario, accion, detalle = '') {
+  db.prepare('INSERT INTO actividad (incidencia_id, usuario, accion, detalle, creada_en) VALUES (?, ?, ?, ?, ?)')
+    .run(incidenciaId, usuario, accion, detalle, Date.now());
+}
+
 function buscarIncidencia(id) {
   return db.prepare('SELECT * FROM incidencias WHERE id = ?').get(Number(id));
 }
@@ -158,7 +163,8 @@ incidentsRouter.get('/:id', validateId, (req, res) => {
   if (!inc) return;
 
   const respuestas = db.prepare('SELECT * FROM respuestas_diagnostico WHERE incidencia_id = ? ORDER BY registrada_en').all(inc.id);
-  res.json({ ...mapInc(inc), respuestas });
+  const actividad = db.prepare('SELECT * FROM actividad WHERE incidencia_id = ? ORDER BY creada_en DESC').all(inc.id);
+  res.json({ ...mapInc(inc), respuestas, actividad });
 });
 
 incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, res) => {
@@ -171,6 +177,7 @@ incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, re
   if (tecnico_id && !existeTecnico(tecnico_id)) return res.status(400).json({ error: 'tecnico_id no existe' });
 
   const nuevoId = insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion });
+  registrarActividad(nuevoId, req.user.nombre, 'creada', 'Incidencia registrada');
   notifyDataChange();
   res.status(201).json(mapInc(buscarIncidenciaCompleta(nuevoId)));
 });
@@ -194,15 +201,23 @@ incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentU
 
   const sets = [];
   const params = [];
+  const cambios = [];
   for (const k of CAMPOS_ACTUALIZABLES) {
     if (k in req.body) {
       sets.push(`${k} = ?`);
-      params.push(typeof req.body[k] === 'string' ? req.body[k].trim() : req.body[k]);
+      const valor = typeof req.body[k] === 'string' ? req.body[k].trim() : req.body[k];
+      params.push(valor);
+      if (String(inc[k] ?? '') !== String(valor ?? '')) {
+        cambios.push(`${k}: ${inc[k] ?? '—'} → ${valor ?? '—'}`);
+      }
     }
   }
   if (sets.length) {
     params.push(Number(req.params.id));
     db.prepare(`UPDATE incidencias SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+    if (cambios.length) {
+      registrarActividad(inc.id, req.user.nombre, 'actualizada', cambios.join(', '));
+    }
   }
   notifyDataChange();
   res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
@@ -235,6 +250,7 @@ incidentsRouter.post('/:id/diagnostico', validateId, validationMiddleware(valida
     }
     db.prepare("UPDATE incidencias SET estado = 'en_diagnostico' WHERE id = ?").run(inc.id);
     db.exec('COMMIT');
+    registrarActividad(inc.id, req.user.nombre, 'diagnostico', `Checklist ${req.body.respuestas.length} respuestas`);
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
@@ -259,6 +275,7 @@ incidentsRouter.post('/:id/finalizar', validateId, validationMiddleware(validate
   const resueltaEn = estado === 'resuelta' ? Date.now() : null;
   db.prepare(`UPDATE incidencias SET estado = ?, causa_raiz_id = ?, solucion_aplicada = ?, resuelta_en = ? WHERE id = ?`)
     .run(estado, Number(req.body.causa_raiz_id), solucion.slice(0, 2000), resueltaEn, inc.id);
+  registrarActividad(inc.id, req.user.nombre, 'cierre', `Caso cerrado como ${estado}`);
   notifyDataChange();
   res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
 });
@@ -267,6 +284,7 @@ incidentsRouter.post('/:id/finalizar', validateId, validationMiddleware(validate
 incidentsRouter.delete('/:id', validateId, requireAdmin, (req, res) => {
   const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
   if (!inc) return;
+  registrarActividad(inc.id, req.user.nombre, 'eliminada', 'Incidencia eliminada');
   db.prepare('DELETE FROM incidencias WHERE id = ?').run(Number(req.params.id));
   notifyDataChange();
   res.json({ ok: true });
