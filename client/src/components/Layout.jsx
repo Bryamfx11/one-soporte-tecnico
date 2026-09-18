@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users } from 'lucide-react';
-import { getUser, setToken, setUser } from '../api.js';
+import { api, getUser, setToken, setUser, useApi } from '../api.js';
+import { useLiveData } from '../sse.js';
 import { useTheme } from '../hooks/useTheme.js';
 
 const NAV = [
@@ -17,6 +18,9 @@ export default function Layout() {
   const { dark, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const user = getUser();
+  const { data: metrica, reload: reloadMetrica } = useApi(() => api.get('/metrics/dashboard'), []);
+  useLiveData(reloadMetrica);
+  const pendientes = (metrica?.nueva ?? 0) + (metrica?.en_diagnostico ?? 0);
 
   function logout() {
     setToken(null);
@@ -41,7 +45,7 @@ export default function Layout() {
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
         <div className="topbar-brand">
-          <img className="topbar-logo-img" src="/logo-one.png" alt="" /> ONETec
+          <Link to="/" className="brand-link" aria-label="Ir al inicio"><img className="topbar-logo-img" src="/logo-one.png" alt="" /> ONETec</Link>
         </div>
         <div className="topbar-actions">
           <button className="theme-toggle" onClick={toggleTheme} aria-label={dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}>
@@ -54,13 +58,13 @@ export default function Layout() {
       </div>
 
       <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div className="brand">
+        <Link to="/" className="brand" aria-label="Ir al inicio">
           <img className="brand-logo-img" src="/logo-one.png" alt="Logo ONE Telecomunicaciones" />
           <div>
             <div className="brand-name">ONETec</div>
             <div className="brand-sub">Plan de Mejora N3</div>
           </div>
-        </div>
+        </Link>
 
         <div className="sidebar-user">
           <User size={16} />
@@ -75,6 +79,9 @@ export default function Layout() {
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => setOpen(false)}>
               <Icon size={18} />
               <span>{label}</span>
+              {to === '/incidencias' && pendientes > 0 && (
+                <span className="nav-badge" title="Nuevas + en diagnóstico">{pendientes}</span>
+              )}
             </NavLink>
           ))}
           {user?.rol === 'admin' && (

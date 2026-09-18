@@ -10,6 +10,7 @@ import {
 import { api, useApi } from '../api.js';
 import { useLiveData } from '../sse.js';
 import { StatCard, Skeleton, SkeletonText, Empty } from '../components/ui.jsx';
+import { useToast } from '../components/Toast.jsx';
 import { fmtTiempo, downloadCSV, pctResolucion, estadoPieData } from '../utils.js';
 
 const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#64748b'];
@@ -17,6 +18,7 @@ const GRID = 'var(--border)';
 
 export default function Dashboard() {
   const { data, loading, error, reload } = useApi(() => api.get('/metrics/dashboard'), []);
+  const showToast = useToast();
   const [actualizado, setActualizado] = useState(null);
 
   useLiveData(reload, { onChange: () => setActualizado(new Date()) });
@@ -60,6 +62,7 @@ export default function Dashboard() {
     ];
     downloadCSV(`dashboard-hoy-${new Date().toISOString().slice(0, 10)}.csv`,
       ['Dimensión', 'Etiqueta', 'Valor'], rows);
+    showToast('success', 'Reporte CSV descargado.');
   }
 
   return (
@@ -90,70 +93,88 @@ export default function Dashboard() {
       <section className="grid two">
         <div className="card">
           <h3>Tiempo promedio de atención por tipo de falla</h3>
-          <div className="chart tall" role="img" aria-label="Gráfica de tiempo promedio de atención por tipo de falla">
-            <ResponsiveContainer>
-              <BarChart data={tiempoPorTipo} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-                <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v) => fmtTiempo(v)} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v) => [fmtTiempo(v), 'Tiempo promedio']} />
-                <Bar dataKey="ms" fill="#2563eb" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <table className="sr-only">
-            <caption>Tiempo promedio de atención por tipo de falla</caption>
-            <thead><tr><th>Tipo de falla</th><th>Tiempo promedio</th></tr></thead>
-            <tbody>
-              {tiempoPorTipo.map((t) => (
-                <tr key={t.nombre}><td>{t.nombre}</td><td>{fmtTiempo(t.ms)}</td></tr>
-              ))}
-            </tbody>
-          </table>
+          {tiempoPorTipo.length === 0 ? (
+            <Empty message="Aún no hay datos de tiempos por tipo de falla" />
+          ) : (
+            <>
+              <div className="chart tall" role="img" aria-label="Gráfica de tiempo promedio de atención por tipo de falla">
+                <ResponsiveContainer>
+                  <BarChart data={tiempoPorTipo} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+                    <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
+                    <YAxis tickFormatter={(v) => fmtTiempo(v)} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(v) => [fmtTiempo(v), 'Tiempo promedio']} />
+                    <Bar dataKey="ms" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <table className="sr-only">
+                <caption>Tiempo promedio de atención por tipo de falla</caption>
+                <thead><tr><th>Tipo de falla</th><th>Tiempo promedio</th></tr></thead>
+                <tbody>
+                  {tiempoPorTipo.map((t) => (
+                    <tr key={t.nombre}><td>{t.nombre}</td><td>{fmtTiempo(t.ms)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
 
         <div className="card">
           <h3>Estado de las incidencias</h3>
-          <div className="chart tall" role="img" aria-label="Gráfica circular del estado de las incidencias">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                  {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="sr-only">
-            {pieData.map((d) => `${d.name}: ${d.value}`).join('. ')}
-          </p>
+          {pieData.reduce((s, d) => s + d.value, 0) === 0 ? (
+            <Empty message="Aún no hay incidencias registradas" />
+          ) : (
+            <>
+              <div className="chart tall" role="img" aria-label="Gráfica circular del estado de las incidencias">
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                      {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="sr-only">
+                {pieData.map((d) => `${d.name}: ${d.value}`).join('. ')}
+              </p>
+            </>
+          )}
         </div>
       </section>
 
       <section className="grid two">
         <div className="card">
           <h3>Incidencias registradas (últimos 30 días)</h3>
-          <div className="chart" role="img" aria-label="Gráfica de tendencia de incidencias en los últimos 30 días">
-            <ResponsiveContainer>
-              <LineChart data={porDia} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-                <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="c" name="Incidencias" stroke="#2563eb" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <table className="sr-only">
-            <caption>Incidencias registradas por día en los últimos 30 días</caption>
-            <thead><tr><th>Día</th><th>Incidencias</th></tr></thead>
-            <tbody>
-              {porDia.map((d) => (
-                <tr key={d.dia}><td>{d.dia}</td><td>{d.c}</td></tr>
-              ))}
-            </tbody>
-          </table>
+          {porDia.length === 0 ? (
+            <Empty message="Aún no hay incidencias registradas en los últimos 30 días" />
+          ) : (
+            <>
+              <div className="chart" role="img" aria-label="Gráfica de tendencia de incidencias en los últimos 30 días">
+                <ResponsiveContainer>
+                  <LineChart data={porDia} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+                    <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="c" name="Incidencias" stroke="#2563eb" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <table className="sr-only">
+                <caption>Incidencias registradas por día en los últimos 30 días</caption>
+                <thead><tr><th>Día</th><th>Incidencias</th></tr></thead>
+                <tbody>
+                  {porDia.map((d) => (
+                    <tr key={d.dia}><td>{d.dia}</td><td>{d.c}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
 
         <div className="card">
