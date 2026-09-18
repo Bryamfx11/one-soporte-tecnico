@@ -67,8 +67,8 @@ export default function Indicadores() {
     <div className="page">
       <header className="page-head">
         <div>
-          <h1>Indicadores del Plan de Mejora</h1>
-          <p>Indicadores alineados con los objetivos específicos (diagnosticar, analizar, proponer)</p>
+          <h1>Indicadores de Operación</h1>
+          <p>Desempeño del servicio de soporte técnico y gestión de incidentes</p>
         </div>
         <div className="head-right">
           <span className="badge live-pill" style={{ color: '#10b981', background: '#10b9811a' }}>
@@ -79,7 +79,7 @@ export default function Indicadores() {
         </div>
       </header>
 
-      <section className="grid three" aria-label="Indicadores del plan de mejora">
+      <section className="grid three" aria-label="Indicadores de operación">
         <div className="ind-card">
           <div className="ind-num">{tasa}%</div>
           <div className="ind-label">Tasa de resolución</div>
@@ -98,7 +98,7 @@ export default function Indicadores() {
       </section>
 
       <section className="card">
-        <h3>Objetivo 1 · Diagnosticar: causas más recurrentes</h3>
+        <h3>Análisis de causa raíz</h3>
         <p className="soft">Distribución de causas raíz registradas al cerrar cada caso.</p>
         {topCausas.length === 0 ? (
           <Empty message="Aún no hay causas raíz registradas" />
@@ -130,8 +130,8 @@ export default function Indicadores() {
 
       <section className="grid two">
         <div className="card">
-          <h3>Objetivo 2 · Analizar: tiempo por tipo de falla</h3>
-          <p className="soft">Cuellos de botella detectados en el proceso actual (as-is).</p>
+          <h3>Tiempos de atención por tipo de falla</h3>
+          <p className="soft">Cuellos de botella en el proceso de diagnóstico y resolución (as-is).</p>
           {tiempoPorTipo.length === 0 ? (
             <Empty message="Aún no hay datos de tiempos por tipo de falla" />
           ) : (
@@ -161,7 +161,7 @@ export default function Indicadores() {
         </div>
 
         <div className="card">
-          <h3>Objetivo 2 · Analizar: carga por técnico</h3>
+          <h3>Carga de trabajo por técnico</h3>
           <p className="soft">Volumen atendido y capacidad de resolución del equipo.</p>
           {porTecnico.length === 0 ? (
             <Empty message="Aún no hay información por técnico" />
@@ -191,8 +191,8 @@ export default function Indicadores() {
 
       <section className="grid two">
         <div className="card">
-          <h3>Objetivo 3 · Proponer: volumen de protocolo aplicado</h3>
-          <p className="soft">Respuestas del checklist de diagnóstico registradas por los técnicos.</p>
+          <h3>Estado de las incidencias</h3>
+          <p className="soft">Respuestas del protocolo de diagnóstico registradas por los técnicos.</p>
           {pieData.reduce((s, d) => s + d.value, 0) === 0 ? (
             <Empty message="Aún no hay incidencias registradas" />
           ) : (

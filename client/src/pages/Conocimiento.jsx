@@ -37,7 +37,7 @@ export default function Conocimiento() {
       <header className="page-head">
         <div>
           <h1>Base de conocimiento</h1>
-          <p>Protocolos estandarizados de diagnóstico por tipo de falla (Objetivo 3)</p>
+          <p>Protocolos estandarizados de diagnóstico y atención por tipo de falla</p>
         </div>
       </header>
 

@@ -62,7 +62,7 @@ export default function Layout() {
           <img className="brand-logo-img" src="/logo-one.png" alt="Logo ONE Telecomunicaciones" />
           <div>
             <div className="brand-name">ONETec</div>
-            <div className="brand-sub">Plan de Mejora N3</div>
+            <div className="brand-sub">Soporte Técnico y Redes</div>
           </div>
         </Link>
 

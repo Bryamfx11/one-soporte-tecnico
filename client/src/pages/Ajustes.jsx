@@ -11,14 +11,14 @@ import { useTheme } from '../hooks/useTheme.js';
 const CRITERIOS_KEY = 'one_criterios';
 
 const CRITERIOS_DEFAULT = {
-  tasaMin: 70,      // % mínimo de resolución objetivo
-  tiempoMaxH: 24,   // tiempo objetivo de diagnóstico (h)
+  tasaMin: 70,      // % mínimo de resolución meta
+  tiempoMaxH: 24,   // tiempo máximo de diagnóstico (h)
   escalarH: 26      // umbral de escalamiento a gerencia (h)
 };
 
 const CAMPOS = [
-  { key: 'tasaMin', label: 'Tasa de resolución mínima', unit: '%', hint: 'Por debajo de esta tasa se marca el objetivo en riesgo.' },
-  { key: 'tiempoMaxH', label: 'Tiempo objetivo de diagnóstico', unit: 'h', hint: 'Meta del tiempo promedio para resolver cada incidencia.' },
+  { key: 'tasaMin', label: 'Tasa de resolución mínima', unit: '%', hint: 'Por debajo de esta tasa se marca la meta en riesgo.' },
+  { key: 'tiempoMaxH', label: 'Tiempo máximo de diagnóstico', unit: 'h', hint: 'Meta del tiempo promedio para resolver cada incidencia.' },
   { key: 'escalarH', label: 'Umbral de escalamiento', unit: 'h', hint: 'A partir de este tiempo sin resolver, la incidencia se escala a gerencia.' }
 ];
 
@@ -74,7 +74,7 @@ export default function Ajustes() {
     <div className="page">
       <header className="page-head">
         <h1><SlidersHorizontal size={20} /> Ajustes</h1>
-        <p className="soft">Personaliza la apariencia y los criterios del plan de mejora.</p>
+        <p className="soft">Personaliza la apariencia y las metas de servicio.</p>
       </header>
 
       <section className="card">
@@ -88,7 +88,7 @@ export default function Ajustes() {
       </section>
 
       <section className="card">
-        <h3><SlidersHorizontal size={16} /> Criterios del plan de mejora</h3>
+        <h3><SlidersHorizontal size={16} /> Metas de servicio</h3>
         <form onSubmit={save}>
           {CAMPOS.map(({ key, label, unit, hint }) => (
             <div className="field" key={key}>

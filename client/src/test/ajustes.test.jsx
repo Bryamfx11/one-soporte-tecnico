@@ -25,10 +25,10 @@ describe('Ajustes', () => {
     expect(screen.getByRole('heading', { name: /ajustes/i })).toBeInTheDocument();
   });
 
-  test('muestra los criterios del plan de mejora por defecto', () => {
+  test('muestra las metas de servicio por defecto', () => {
     renderizarAjustes();
     expect(screen.getByLabelText('Tasa de resolución mínima')).toHaveValue(70);
-    expect(screen.getByLabelText('Tiempo objetivo de diagnóstico')).toHaveValue(24);
+    expect(screen.getByLabelText('Tiempo máximo de diagnóstico')).toHaveValue(24);
     expect(screen.getByLabelText('Umbral de escalamiento')).toHaveValue(26);
   });
 });
