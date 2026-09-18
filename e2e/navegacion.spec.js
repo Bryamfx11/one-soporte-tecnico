@@ -18,3 +18,12 @@ test('técnico no ve Usuarios y /usuarios redirige al inicio', async ({ page }) 
   await page.goto('/usuarios');
   await expect(page.getByRole('heading', { name: 'Dashboard de Soporte Técnico' })).toBeVisible();
 });
+
+test('una ruta inexistente muestra la página 404', async ({ page }) => {
+  await login(page);
+  await page.goto('/ruta-que-no-existe');
+  await expect(page.getByRole('heading', { name: '404' })).toBeVisible();
+  await expect(page.getByText('La página que buscas no existe.')).toBeVisible();
+  await page.getByRole('link', { name: 'Volver al inicio' }).click();
+  await expect(page.getByRole('heading', { name: 'Dashboard de Soporte Técnico' })).toBeVisible();
+});
