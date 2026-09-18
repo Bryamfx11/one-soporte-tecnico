@@ -12,6 +12,11 @@ function fechaLocalISO(tsLocalMs) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
+metricsRouter.get('/pendientes', (_req, res) => {
+  const r = db.prepare("SELECT COUNT(*) AS c FROM incidencias WHERE estado IN ('nueva', 'en_diagnostico')").get();
+  res.json({ pendientes: r.c });
+});
+
 metricsRouter.get('/dashboard', (req, res) => {
   const total = db.prepare('SELECT COUNT(*) AS c FROM incidencias').get().c;
 

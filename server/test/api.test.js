@@ -173,6 +173,12 @@ test('GET /api/checklists/causas-raiz devuelve causas (no sombreada por /:tipoId
   assert.ok(res.body[0].categoria);
 });
 
+test('GET /api/metrics/pendientes devuelve el contador de casos abiertos', async () => {
+  const res = await request(app).get('/api/metrics/pendientes').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+  assert.equal(typeof res.body.pendientes, 'number');
+});
+
 test('GET /api/metrics/dashboard devuelve métricas', async () => {
   const res = await request(app).get('/api/metrics/dashboard').set('Authorization', `Bearer ${adminToken}`);
   assert.equal(res.status, 200);

@@ -18,9 +18,9 @@ export default function Layout() {
   const { dark, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const user = getUser();
-  const { data: metrica, reload: reloadMetrica } = useApi(() => api.get('/metrics/dashboard'), []);
+  const { data: metrica, reload: reloadMetrica } = useApi(() => api.get('/metrics/pendientes'), []);
   useLiveData(reloadMetrica);
-  const pendientes = (metrica?.nueva ?? 0) + (metrica?.en_diagnostico ?? 0);
+  const pendientes = metrica?.pendientes ?? 0;
 
   function logout() {
     setToken(null);
