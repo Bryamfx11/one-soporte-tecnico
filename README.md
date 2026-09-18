@@ -9,13 +9,10 @@
 ![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
 ![License](https://img.shields.io/badge/Licencia-MIT-green)
-![Status](https://img.shields.io/badge/Estado-Activo-brightgreen)
 
-*Optimización del Proceso de Soporte Técnico en ONE Telecomunicaciones S.A.S.*
+*Gestión de soporte técnico y red para ONE Telecomunicaciones S.A.S.*
 
-[📄 Informe del Plan de Mejora](docs/Informe_Plan_de_Mejora_N3.pdf) ·
-[🚀 Ver en GitHub](https://github.com/Bryamfx11/one-soporte-tecnico) ·
-[📊 App (desplegada)](http://localhost:4000)
+[🚀 Ver en GitHub](https://github.com/Bryamfx11/one-soporte-tecnico)
 
 </div>
 
@@ -23,17 +20,16 @@
 
 ## 📋 Descripción del Proyecto
 
-Plataforma web de soporte técnico para **ONE Telecomunicaciones S.A.S.** desarrollada como
-propuesta del **Informe Final de Plan de Mejora Nivel 3** (Bryam Stevens Villalba Culma,
-Ingeniería de Software — Semestre 7, Promoción 15B).
+Plataforma web corporativa para el **Área de Soporte Técnico y Redes** de **ONE Telecomunicaciones S.A.S.**.
+Centraliza la gestión de incidentes (PQR), el diagnóstico estandarizado de fallas, la base de conocimiento
+y los indicadores de desempeño del servicio, con acceso por roles (administrador / técnico).
 
-El proyecto implementa los tres objetivos específicos del plan:
-
-| # | Objetivo | Funcionalidad en la plataforma |
-|---|---|---|
-| 1 | **Diagnosticar** las causas de los tiempos de respuesta prolongados | Dashboard con KPIs, gráficas de tendencia y top causas raíz recurrentes |
-| 2 | **Analizar** los procesos actuales de atención y mantenimiento de red | Tiempo promedio por tipo de falla, carga por técnico, cuellos de botella |
-| 3 | **Proponer** un protocolo estandarizado de diagnóstico y atención de fallas | Checklist guiado paso a paso por tipo de falla FTTH/GPON con registro de causa raíz |
+| Área | Lo que cubre la plataforma |
+|---|---|
+| **Gestión de incidentes** | Registro, seguimiento, diagnóstico guiado y cierre de casos, con auditoría completa |
+| **Diagnóstico estandarizado** | Checklist paso a paso por tipo de falla FTTH/GPON con causa raíz (Ishikawa) |
+| **Base de conocimiento** | Protocolos de diagnóstico y atención consultables para capacitar al equipo |
+| **Indicadores de operación** | Métricas del servicio: resolución, tiempos de atención, carga por técnico y tendencias |
 
 ---
 
@@ -41,13 +37,11 @@ El proyecto implementa los tres objetivos específicos del plan:
 
 - **Autenticación**: login con JWT, roles (admin/técnico), rutas protegidas y registro exclusivo de administradores; verificación de contraseña con tiempos constantes (evita enumerar qué correos están registrados)
 - **Seguridad**: secreto JWT aleatorio por arranque cuando no viene del entorno (en desarrollo) y obligatorio en producción, rate limiting por ruta, cabeceras de seguridad (CSP, etc.), CORS restringido por orígenes permitidos y contraseñas cifradas con bcrypt
-- **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico con indicador visual de último refresco
+- **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico con indicador visual de último refresco (actualizado por SSE, sin polling)
 - **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio y **rango de fechas**, flujo de ciclo de vida; número de ticket con reintento ante colisiones y casos cerrados (resuelta/escalada) que no se reabren por API
 - **Filtros compartibles**: los filtros y la página de Incidencias viven en la URL, por lo que se pueden compartir, marcar como favoritos y conservar al recargar
 - **Aviso de cambios sin guardar**: los formularios (nueva incidencia y wizard de diagnóstico) advierten antes de cerrar o recargar la pestaña
 - **Pendientes a la vista**: badge en el menú con el número de casos sin cerrar (nuevas + en diagnóstico), actualizado en tiempo real por SSE
-- **Exportación con confirmación**: al descargar reportes CSV (Dashboard e Indicadores) se muestra una notificación de éxito
-- **Estados vacíos**: las gráficas muestran un mensaje claro cuando aún no hay datos, en lugar de un lienzo en blanco
 - **Auditoría por incidencia**: tabla `actividad` con cada movimiento (creación, edición, diagnóstico, cierre y eliminación) con usuario, acción y detalle
 - **Gestión de usuarios (admin)**: listado y activación/desactivación de cuentas; las cuentas desactivadas no pueden ingresar ni mantener sesión
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
@@ -55,7 +49,9 @@ El proyecto implementa los tres objetivos específicos del plan:
   - Referencia esperada por cada paso
   - Registro de causa raíz (Diagrama de Ishikawa)
 - **Base de conocimiento**: Protocolos de diagnóstico consultables para capacitar nuevo personal
-- **Indicadores del Plan de Mejora**: Métricas alineadas a cada objetivo específico
+- **Indicadores de Operación**: Métricas del servicio alineadas a las metas de resolución, tiempos de atención, carga por técnico y tendencia
+- **Exportación con confirmación**: al descargar reportes CSV (Dashboard e Indicadores) se muestra una notificación de éxito
+- **Estados vacíos**: las gráficas muestran un mensaje claro cuando aún no hay datos, en lugar de un lienzo en blanco
 - **Responsive**: menú lateral colapsable en dispositivos móviles
 
 ---
@@ -158,8 +154,6 @@ npm run backup   # snapshot VACUUM INTO en server/backups/ (14 copias por defect
 
 ```
 one-soporte-tecnico/
-├── docs/
-│   └── Informe_Plan_de_Mejora_N3.pdf   # Informe final del proyecto
 ├── server/                              # API Express
 │   ├── index.js                         # Arranque del servidor
 │   ├── app.js                           # Configuración de la app Express
@@ -185,8 +179,8 @@ one-soporte-tecnico/
         │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico guiado
         │   ├── NuevaIncidencia.jsx      # Formulario de creación
         │   ├── Conocimiento.jsx         # Base de conocimiento
-        │   ├── Indicadores.jsx          # Métricas del plan de mejora
-        │   ├── Ajustes.jsx              # Tema y criterios del plan de mejora
+        │   ├── Indicadores.jsx          # Métricas del servicio
+        │   ├── Ajustes.jsx              # Tema y metas de servicio
         │   ├── Usuarios.jsx             # Gestión de cuentas (solo admin)
         │   └── NotFound.jsx             # Error 404
         ├── components/
@@ -205,32 +199,6 @@ one-soporte-tecnico/
 
 ---
 
-## 📄 Documento Académica
-
-El informe del Plan de Mejora Nivel 3 se encuentra en la carpeta
-[`docs/`](docs/Informe_Plan_de_Mejora_N3.pdf) y detalla:
-
-- **Contextualización** de ONE Telecomunicaciones S.A.S.
-- **Planteamiento del problema** (ausencia de protocolo estandarizado)
-- **Marco teórico** (ITIL, ciclo PHVA, redes FTTH/GPON)
-- **Diagnóstico externo e interno** (PESTEL + análisis funcional)
-- **Metodología** del plan de mejora
-- **Factibilidad** (financiera, técnica, operativa)
-- **Resultados y conclusiones**
-
----
-
-## 👨‍💻 Autor
-
-**Bryam Stevens Villalba Culma**
-Ingeniería de Software — Semestre 7, Promoción 15B
-Universidad: [Uniempresarial](https://www.uniempresarial.edu.co)
-
-Tutor empresarial: **Yudy Garcia** — Administradora General, ONE Telecomunicaciones S.A.S.
-Profesor acompañante: **Adán Beltran Gómez**
-
----
-
 ## 📜 Licencia
 
 Este proyecto está bajo la licencia [MIT](LICENSE).
@@ -239,7 +207,6 @@ Este proyecto está bajo la licencia [MIT](LICENSE).
 
 <div align="center">
 
-*Desarrollado como parte del Informe Final de Plan de Mejora Nivel 3*
 *ONE Telecomunicaciones S.A.S. — Bogotá D.C.*
 
 </div>
