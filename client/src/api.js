@@ -44,7 +44,9 @@ async function request(path, options = {}) {
     try {
       const data = await res.json();
       msg = Array.isArray(data.details) && data.details.length ? `${data.error}: ${data.details.join(', ')}` : (data.error ?? msg);
-    } catch {}
+    } catch {
+      void 0;
+    }
     throw new Error(msg);
   }
   return res.json();

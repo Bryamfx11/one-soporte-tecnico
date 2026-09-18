@@ -7,14 +7,20 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "node --test --test-force-exit test/*.test.js"
+    "test": "node --test --test-force-exit test/*.test.js",
+    "lint": "eslint .",
+    "backup": "node backup.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
     "supertest": "^7.1.4"
   }
 }

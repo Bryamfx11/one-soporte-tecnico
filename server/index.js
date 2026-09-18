@@ -25,7 +25,9 @@ const shutdown = () => {
   server.close(() => {
     try {
       db.close();
-    } catch {}
+    } catch (err) {
+      console.error('No se pudo cerrar la base de datos:', err.message);
+    }
     process.exit(0);
   });
   setTimeout(() => process.exit(1), 5000).unref();

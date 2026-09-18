@@ -30,7 +30,7 @@ export default function Incidencias() {
   params.set('limit', pageSize);
   params.set('offset', (page - 1) * pageSize);
 
-  const { data: incidencias, loading, error, reload } = useApi(
+  const { data: incidencias, loading, error } = useApi(
     () => api.get(`/incidents?${params.toString()}`),
     [estado, tipo, debouncedQ, page, pageSize]
   );

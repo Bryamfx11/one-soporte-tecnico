@@ -58,7 +58,9 @@ export default function Ajustes() {
     setForm({ ...CRITERIOS_DEFAULT });
     try {
       localStorage.removeItem(CRITERIOS_KEY);
-    } catch {}
+    } catch {
+      void 0;
+    }
     showToast('info', 'Criterios restablecidos a los valores por defecto.');
   }
 

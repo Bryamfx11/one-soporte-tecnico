@@ -30,9 +30,11 @@ export default function IncidenciaDetail() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const tecnicoActivo = inc?.tecnico_id ?? '';
+
   useEffect(() => {
-    if (inc && (inc.tecnico_id ?? '') !== '') setTecnicoSel(inc.tecnico_id);
-  }, [inc?.tecnico_id]);
+    if (tecnicoActivo !== '') setTecnicoSel(tecnicoActivo);
+  }, [tecnicoActivo]);
 
   if (loading) {
     return (

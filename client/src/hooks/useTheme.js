@@ -14,7 +14,9 @@ function aplicarTema(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   try {
     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
-  } catch {}
+  } catch {
+    void 0;
+  }
 }
 
 export function useTheme() {

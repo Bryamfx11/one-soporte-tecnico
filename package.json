@@ -11,7 +11,11 @@
     "build": "cd client && npm run build",
     "test:server": "cd server && npm test",
     "test:client": "cd client && npm test",
-    "test": "npm run test:server && npm run test:client"
+    "test": "npm run test:server && npm run test:client",
+    "lint:server": "cd server && npm run lint",
+    "lint:client": "cd client && npm run lint",
+    "lint": "npm run lint:server && npm run lint:client",
+    "backup": "cd server && npm run backup"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
