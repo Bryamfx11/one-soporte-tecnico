@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
-import { api, useApi } from '../api.js';
+import { api, apiGetEstatico, useApi } from '../api.js';
 import { Skeleton, SkeletonText } from '../components/ui.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { useDirtyGuard } from '../hooks/useDirtyGuard.js';
@@ -10,8 +10,8 @@ import { PRIORIDADES } from '../utils.js';
 export default function NuevaIncidencia() {
   const navigate = useNavigate();
   const showToast = useToast();
-  const { data: tipos, loading: loadingTipos, error: errorTipos } = useApi(() => api.get('/checklists/tipos'), []);
-  const { data: tecnicos } = useApi(() => api.get('/tecnicos'), []);
+  const { data: tipos, loading: loadingTipos, error: errorTipos } = useApi(() => apiGetEstatico('/checklists/tipos'), []);
+  const { data: tecnicos } = useApi(() => apiGetEstatico('/tecnicos'), []);
 
   const [form, setForm] = useState({ cliente: '', telefono: '', direccion: '', barrio: '', tipo_falla_id: '', prioridad: 'media', tecnico_id: '', sintomas: '', descripcion: '' });
   const [saving, setSaving] = useState(false);

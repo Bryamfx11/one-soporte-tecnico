@@ -18,6 +18,16 @@ export function useLiveData(reload, { enabled = true, onChange } = {}) {
     let controller = null;
     let reintento = RECONNECT_INICIAL;
     let timer = null;
+    let timerReload = null;
+
+    function agendaRefresco() {
+      if (timerReload !== null) return;
+      timerReload = setTimeout(() => {
+        timerReload = null;
+        reload();
+        if (onChangeRef.current) onChangeRef.current();
+      }, 250);
+    }
 
     async function conectar() {
       while (activo) {
@@ -56,8 +66,7 @@ export function useLiveData(reload, { enabled = true, onChange } = {}) {
                     try {
                       const evento = JSON.parse(linea.slice(6));
                       if (evento.type === 'update') {
-                        reload();
-                        if (onChangeRef.current) onChangeRef.current();
+                        agendaRefresco();
                       }
                     } catch {
                       void 0;
@@ -82,6 +91,7 @@ export function useLiveData(reload, { enabled = true, onChange } = {}) {
       activo = false;
       if (controller) controller.abort();
       if (timer) clearTimeout(timer);
+      if (timerReload !== null) clearTimeout(timerReload);
     };
   }, [enabled, reload]);
 }

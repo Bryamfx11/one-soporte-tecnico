@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Plus, MapPin, Wifi, X } from 'lucide-react';
-import { api, useApi } from '../api.js';
+import { api, apiGetEstatico, useApi } from '../api.js';
 import { SkeletonTable, Empty } from '../components/ui.jsx';
 import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiempo } from '../utils.js';
 
@@ -71,7 +71,7 @@ export default function Incidencias() {
     () => api.get(`/incidents?${params.toString()}`),
     [estado, tipo, desde, hasta, debouncedQ, page, pageSize]
   );
-  const { data: tipos } = useApi(() => api.get('/checklists/tipos'), []);
+  const { data: tipos } = useApi(() => apiGetEstatico('/checklists/tipos'), []);
 
   const items = incidencias?.items ?? [];
   const total = incidencias?.total ?? 0;

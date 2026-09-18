@@ -49,6 +49,9 @@ async function request(path, options = {}) {
     }
     throw new Error(msg);
   }
+  if (res.ok && options.method && options.method !== 'GET') {
+    cacheEstatico.clear();
+  }
   return res.json();
 }
 
@@ -58,6 +61,28 @@ export const api = {
   patch: (p, body) => request(p, { method: 'PATCH', body: JSON.stringify(body) }),
   del: (p) => request(p, { method: 'DELETE' })
 };
+
+const cacheEstatico = new Map();
+const cacheEnVuelo = new Map();
+const TTL_ESTATICO = 60000;
+
+export function apiGetEstatico(path, ttlMs = TTL_ESTATICO) {
+  const hit = cacheEstatico.get(path);
+  if (hit && hit.expira > Date.now()) return Promise.resolve(hit.data);
+  if (cacheEnVuelo.has(path)) return cacheEnVuelo.get(path);
+  const p = api.get(path)
+    .then((data) => {
+      cacheEstatico.set(path, { data, expira: Date.now() + ttlMs });
+      return data;
+    })
+    .catch((err) => {
+      cacheEstatico.delete(path);
+      throw err;
+    })
+    .finally(() => cacheEnVuelo.delete(path));
+  cacheEnVuelo.set(path, p);
+  return p;
+}
 
 export function useApi(fn, deps = []) {
   const [data, setData] = useState(null);

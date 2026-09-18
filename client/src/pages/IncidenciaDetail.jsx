@@ -4,7 +4,7 @@ import {
   User, MapPin, Phone, Play, Save, X,
   ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2
 } from 'lucide-react';
-import { api, getUser, useApi } from '../api.js';
+import { api, apiGetEstatico, getUser, useApi } from '../api.js';
 import { Badge, ConfirmDialog, Modal, Skeleton, SkeletonText } from '../components/ui.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { useDirtyGuard } from '../hooks/useDirtyGuard.js';
@@ -16,8 +16,8 @@ export default function IncidenciaDetail() {
   const showToast = useToast();
   const user = getUser();
   const { data: inc, loading, error, reload } = useApi(() => api.get(`/incidents/${id}`), [id]);
-  const { data: causas } = useApi(() => api.get('/checklists/causas-raiz'), []);
-  const { data: tecnicos } = useApi(() => api.get('/tecnicos'), []);
+  const { data: causas } = useApi(() => apiGetEstatico('/checklists/causas-raiz'), []);
+  const { data: tecnicos } = useApi(() => apiGetEstatico('/tecnicos'), []);
 
   const { data: checklist } = useApi(
     () => (inc ? api.get(`/checklists/${inc.tipo_falla_id}`) : Promise.resolve(null)),
