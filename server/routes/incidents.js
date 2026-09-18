@@ -78,14 +78,18 @@ function escaparLike(str) {
   return str.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
 
+function siguienteTicket() {
+  db.prepare("INSERT INTO secuencias (nombre, valor) VALUES ('ticket', 1) ON CONFLICT(nombre) DO UPDATE SET valor = valor + 1").run();
+  return db.prepare('SELECT valor FROM secuencias WHERE nombre = ?').get('ticket').valor;
+}
+
 function insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion }) {
   const insert = db.prepare(`INSERT INTO incidencias
     (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, creada_en)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
 
   for (let intento = 0; intento < 3; intento++) {
-    const maxNum = db.prepare("SELECT COALESCE(MAX(CAST(SUBSTR(numero_ticket, 5) AS INTEGER)), 0) AS m FROM incidencias").get().m;
-    const numero_ticket = `ONE-${String(maxNum + 1).padStart(4, '0')}`;
+    const numero_ticket = `ONE-${String(siguienteTicket()).padStart(4, '0')}`;
     try {
       const r = insert.run(
         numero_ticket, String(cliente).trim(),
@@ -234,9 +238,9 @@ incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentU
     db.prepare(`UPDATE incidencias SET ${sets.join(', ')} WHERE id = ?`).run(...params);
     if (cambios.length) {
       registrarActividad(inc.id, req.user.nombre, 'actualizada', cambios.join(', '));
+      notifyDataChange();
     }
   }
-  notifyDataChange();
   res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
 });
 

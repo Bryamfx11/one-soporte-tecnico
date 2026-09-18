@@ -102,6 +102,11 @@ CREATE TABLE IF NOT EXISTS actividad (
 );
 
 CREATE INDEX IF NOT EXISTS idx_actividad_inc ON actividad(incidencia_id);
+
+CREATE TABLE IF NOT EXISTS secuencias (
+  nombre TEXT PRIMARY KEY,
+  valor INTEGER NOT NULL
+);
 `);
 
 const usuarioCols = db.prepare("SELECT name FROM pragma_table_info('usuarios')").all().map((c) => c.name);
@@ -110,5 +115,10 @@ if (!usuarioCols.includes('activo')) {
 }
 
 seedIfEmpty();
+
+if (db.prepare("SELECT COUNT(*) AS c FROM secuencias WHERE nombre = 'ticket'").get().c === 0) {
+  const maxTicket = db.prepare("SELECT COALESCE(MAX(CAST(SUBSTR(numero_ticket, 5) AS INTEGER)), 0) AS m FROM incidencias").get().m;
+  db.prepare('INSERT INTO secuencias (nombre, valor) VALUES (?, ?)').run('ticket', maxTicket);
+}
 
 export default db;
