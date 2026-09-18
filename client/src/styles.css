@@ -460,6 +460,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .topbar-logo-img { height: 22px; width: auto; object-fit: contain; }
 .topbar-actions { display: flex; align-items: center; gap: 4px; }
 
+@media (max-width: 960px) {
+  .topbar { display: flex; }
+}
+
 /* ---------- Sidebar user ---------- */
 .sidebar-user {
   display: flex; align-items: center; gap: 10px;

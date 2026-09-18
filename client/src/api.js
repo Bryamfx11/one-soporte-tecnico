@@ -36,8 +36,10 @@ async function request(path, options = {}) {
   if (res.status === 401) {
     setToken(null);
     setUser(null);
-    window.location.assign('/login');
-    throw new Error('Sesión expirada. Inicie sesión nuevamente.');
+    if (!path.startsWith('/auth/login')) {
+      window.location.assign('/login');
+      throw new Error('Sesión expirada. Inicie sesión nuevamente.');
+    }
   }
   if (!res.ok) {
     let msg = `Error ${res.status}`;
