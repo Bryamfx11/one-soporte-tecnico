@@ -7,8 +7,9 @@ Soporte técnico platform (ONETec) — React 19 + Vite in `client/`, Express 4 i
 - Install: `npm run install:all` (handles esbuild's postinstall script on npm 11+; use this instead of per-package `npm install`)
 - Dev: `npm run dev` (concurrently). API → http://localhost:4000, client → http://localhost:5173 (proxies `/api` to 4000). `npm run dev:server` / `dev:client` run each alone
 - Tests: `npm test` (runs server then client). Server: `node --test --test-force-exit test/*.test.js` under `server/`. Client: `vitest run` under `client/`
-- **There is no lint or typecheck** — tests are the only verification step
+- Lint: `npm run lint` (ESLint 9 flat config per package; `eslint.config.js` in `server/` and `client/`). **There is no typecheck** — gate is `lint` + `test`
 - Single file: `cd server && node --test test/validate.test.js` · `cd client && npx vitest run src/test/utils.test.js`
+- Backup de la BD: `npm run backup` (snapshot `VACUUM INTO` en `server/backups/`, conserva `BACKUP_KEEP` copias; sobreescribible con `BACKUP_DIR`)
 - Build (prod, client only): `npm run build` → `client/dist`
 
 ## Requirements
@@ -18,7 +19,9 @@ Soporte técnico platform (ONETec) — React 19 + Vite in `client/`, Express 4 i
 
 ## Server
 
-- Entrypoints: `server/app.js` is the Express app (what tests import); `server/index.js` does `listen()` + graceful shutdown
+- Entrypoints: `server/app.js` is the Express app (what tests import); `server/index.js` does `listen()` + graceful shutdown. It loads `server/.env` via `dotenv` (import at top of `app.js`); copy `server/.env.example` to persist `JWT_SECRET` in dev
+- `app.js` sets `trust proxy` from `TRUST_PROXY` (default `loopback`) — set it to the real proxy IP/Host when behind nginx/caddy so the rate limiter sees client IPs
+- `/api/sse/events` (SSE, `requireAuth`) pushes `{"type":"update"}` whenever incidents/técnicos change; client subscribes via `useLiveData(reload)` in `client/src/sse.js` (Dashboard + Indicadores, no polling)
 - Dev server runs `node --watch index.js`. Without `JWT_SECRET` a **random secret is generated per boot**, so every restart invalidates existing tokens
 - `server/db.js` opens `server/one.db` (override with `DB_PATH`), creates the schema, and seeds (`seed.js`, WAL mode) **only for tables that are empty**. Dev seed creates `admin@one.com/admin123` (admin) and `bryam@one.com/tecnico123` (técnico); in production it only creates the admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`
 - `JWT_SECRET` is **required in production** (`server/auth.js` throws)
@@ -34,3 +37,5 @@ Soporte técnico platform (ONETec) — React 19 + Vite in `client/`, Express 4 i
 ## Production
 
 - `npm run build` then `pm2 start ecosystem.config.cjs` (runs `server/index.js`; serves the built client statically from `client/dist` when present). Set `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` first
+- Schedule `npm run backup` before upgrades (respaldo SQLite vía `VACUUM INTO`)
+- CI: GitHub Actions (`npm run lint` + `npm test`) corre en push/PR a `master`

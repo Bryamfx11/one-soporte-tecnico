@@ -104,6 +104,7 @@ npm run dev
 | `JWT_SECRET` | Obligatoria en producción; la API no arranca si falta. Si no se define en desarrollo, se genera un secreto aleatorio por arranque (los tokens existentes quedan inválidos y se muestra un aviso) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales del administrador que crea el seed |
 | `ALLOWED_ORIGINS` | Orígenes de CORS permitidos (separados por coma) |
+| `TRUST_PROXY` | IP/host del proxy inverso (nginx/caddy). Por defecto `loopback`; ajústalo si la API está detrás de un proxy para que el rate limiting vea IPs reales |
 
 > La primera vez se crea `server/one.db` automáticamente con datos de ejemplo
 > (5 tipos de falla FTTH, 24 incidencias, checklists de diagnóstico, categorías Ishikawa).
@@ -116,7 +117,10 @@ npm run dev
 npm test              # Ejecuta pruebas de API y cliente
 npm run test:server   # API + validaciones (node:test + supertest)
 npm run test:client   # Componentes y utilidades (Vitest + Testing Library)
+npm run lint          # ESLint (server y cliente)
 ```
+
+CI (GitHub Actions) ejecuta `npm run lint` + `npm test` en cada push/PR a `master`.
 
 ---
 
@@ -133,6 +137,12 @@ Configure previamente las variables de entorno descritas arriba
 (`JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` y opcionalmente `ALLOWED_ORIGINS`).
 
 Límites por omisión de la API: **300 peticiones/min** en `/api` y **10 peticiones/min** en `/api/auth`.
+
+Antes de actualizar la versión desplegada, respalda la base de datos:
+
+```bash
+npm run backup   # snapshot VACUUM INTO en server/backups/ (14 copias por defecto)
+```
 
 ---
 
