@@ -41,7 +41,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.use('/api', rateLimit({ windowMs: 60000, max: 300 }));
+app.use('/api', rateLimit({ windowMs: 60000, max: process.env.NODE_ENV === 'production' ? 300 : 1000 }));
 app.use('/api/auth', rateLimit({ windowMs: 60000, max: process.env.NODE_ENV === 'production' ? 10 : 1000, message: 'Demasiados intentos de autenticación, intente más tarde' }));
 
 app.use(express.json({ limit: '1mb' }));
