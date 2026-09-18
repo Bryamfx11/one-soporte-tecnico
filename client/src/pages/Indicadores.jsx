@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, Line, LineChart
 } from 'recharts';
 import { Download, Printer } from 'lucide-react';
 import { api, useApi } from '../api.js';
+import { useLiveData } from '../sse.js';
 import { Skeleton, SkeletonText, Empty } from '../components/ui.jsx';
 import { fmtTiempo, downloadCSV, pctResolucion, estadoPieData } from '../utils.js';
 
@@ -13,10 +13,7 @@ const GRID = 'var(--border)';
 export default function Indicadores() {
   const { data, loading, error, reload } = useApi(() => api.get('/metrics/dashboard'), []);
 
-  useEffect(() => {
-    const t = setInterval(reload, 30000);
-    return () => clearInterval(t);
-  }, [reload]);
+  useLiveData(reload);
 
   if (loading && !data) {
     return (

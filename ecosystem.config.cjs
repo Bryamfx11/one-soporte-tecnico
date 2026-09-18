@@ -11,7 +11,8 @@ module.exports = {
         JWT_SECRET: process.env.JWT_SECRET || '',
         ADMIN_EMAIL: process.env.ADMIN_EMAIL || '',
         ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',
-        ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4000'
+        ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4000',
+        TRUST_PROXY: process.env.TRUST_PROXY || 'loopback'
       },
       max_memory_restart: '200M',
       autorestart: true,

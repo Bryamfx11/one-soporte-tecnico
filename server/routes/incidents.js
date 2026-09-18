@@ -5,6 +5,7 @@ import {
   validateFinalizar, validateIdParam, validationMiddleware, ESTADOS_TRANSICION
 } from '../validate.js';
 import { requireAdmin } from '../auth.js';
+import { notifyDataChange } from '../sse.js';
 
 export const incidentsRouter = express.Router();
 
@@ -170,6 +171,7 @@ incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, re
   if (tecnico_id && !existeTecnico(tecnico_id)) return res.status(400).json({ error: 'tecnico_id no existe' });
 
   const nuevoId = insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion });
+  notifyDataChange();
   res.status(201).json(mapInc(buscarIncidenciaCompleta(nuevoId)));
 });
 
@@ -202,6 +204,7 @@ incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentU
     params.push(Number(req.params.id));
     db.prepare(`UPDATE incidencias SET ${sets.join(', ')} WHERE id = ?`).run(...params);
   }
+  notifyDataChange();
   res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
 });
 
@@ -236,6 +239,7 @@ incidentsRouter.post('/:id/diagnostico', validateId, validationMiddleware(valida
     db.exec('ROLLBACK');
     throw err;
   }
+  notifyDataChange();
   res.json({ ok: true, saved: req.body.respuestas.length });
 });
 
@@ -255,6 +259,7 @@ incidentsRouter.post('/:id/finalizar', validateId, validationMiddleware(validate
   const resueltaEn = estado === 'resuelta' ? Date.now() : null;
   db.prepare(`UPDATE incidencias SET estado = ?, causa_raiz_id = ?, solucion_aplicada = ?, resuelta_en = ? WHERE id = ?`)
     .run(estado, Number(req.body.causa_raiz_id), solucion.slice(0, 2000), resueltaEn, inc.id);
+  notifyDataChange();
   res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
 });
 
@@ -263,5 +268,6 @@ incidentsRouter.delete('/:id', validateId, requireAdmin, (req, res) => {
   const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
   if (!inc) return;
   db.prepare('DELETE FROM incidencias WHERE id = ?').run(Number(req.params.id));
+  notifyDataChange();
   res.json({ ok: true });
 });

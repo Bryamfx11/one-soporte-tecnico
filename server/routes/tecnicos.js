@@ -2,6 +2,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { validateTecnicoUpdate, validateIdParam, validationMiddleware } from '../validate.js';
+import { notifyDataChange } from '../sse.js';
 
 export const tecnicosRouter = express.Router();
 
@@ -33,5 +34,6 @@ tecnicosRouter.patch('/:id', requireAdmin, validationMiddleware(validateTecnicoU
     db.prepare(`UPDATE tecnicos SET ${sets.join(', ')} WHERE id = ?`).run(...params);
   }
 
+  notifyDataChange();
   res.json(db.prepare('SELECT * FROM tecnicos WHERE id = ?').get(tecnico.id));
 });

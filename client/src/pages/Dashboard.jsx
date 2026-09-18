@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity, Clock, CheckCircle2, ArrowUpCircle, ListTodo, Download, Printer
@@ -8,6 +7,7 @@ import {
   PieChart, Pie, Cell, Legend, Line, LineChart
 } from 'recharts';
 import { api, useApi } from '../api.js';
+import { useLiveData } from '../sse.js';
 import { StatCard, Skeleton, SkeletonText, Empty } from '../components/ui.jsx';
 import { fmtTiempo, downloadCSV, pctResolucion, estadoPieData } from '../utils.js';
 
@@ -17,10 +17,7 @@ const GRID = 'var(--border)';
 export default function Dashboard() {
   const { data, loading, error, reload } = useApi(() => api.get('/metrics/dashboard'), []);
 
-  useEffect(() => {
-    const t = setInterval(reload, 30000);
-    return () => clearInterval(t);
-  }, [reload]);
+  useLiveData(reload);
 
   if (loading && !data) {
     return (

@@ -45,6 +45,11 @@ test('Ruta protegida con token inválido responde 401', async () => {
   assert.equal(res.status, 401);
 });
 
+test('GET /api/sse/events sin token responde 401', async () => {
+  const res = await request(app).get('/api/sse/events');
+  assert.equal(res.status, 401);
+});
+
 test('POST /api/auth/login con credenciales incorrectas responde 401', async () => {
   const res = await request(app).post('/api/auth/login').send({ email: 'admin@one.com', password: 'malo123' });
   assert.equal(res.status, 401);
