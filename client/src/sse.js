@@ -1,10 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { getToken, setToken, setUser } from './api.js';
 
 const RECONNECT_INICIAL = 3000;
 const RECONNECT_MAX = 30000;
 
-export function useLiveData(reload, { enabled = true } = {}) {
+export function useLiveData(reload, { enabled = true, onChange } = {}) {
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+
   useEffect(() => {
     if (!enabled || typeof reload !== 'function') return;
 
@@ -49,7 +55,10 @@ export function useLiveData(reload, { enabled = true } = {}) {
                   if (linea.startsWith('data: ')) {
                     try {
                       const evento = JSON.parse(linea.slice(6));
-                      if (evento.type === 'update') reload();
+                      if (evento.type === 'update') {
+                        reload();
+                        if (onChangeRef.current) onChangeRef.current();
+                      }
                     } catch {
                       void 0;
                     }

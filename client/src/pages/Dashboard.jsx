@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, Clock, CheckCircle2, ArrowUpCircle, ListTodo, Download, Printer
+  Activity, Clock, CheckCircle2, ArrowUpCircle, ListTodo, Download, Printer, RefreshCw
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -16,8 +17,13 @@ const GRID = 'var(--border)';
 
 export default function Dashboard() {
   const { data, loading, error, reload } = useApi(() => api.get('/metrics/dashboard'), []);
+  const [actualizado, setActualizado] = useState(null);
 
-  useLiveData(reload);
+  useLiveData(reload, { onChange: () => setActualizado(new Date()) });
+
+  useEffect(() => {
+    if (data && !actualizado) setActualizado(new Date());
+  }, [data, actualizado]);
 
   if (loading && !data) {
     return (
@@ -64,6 +70,9 @@ export default function Dashboard() {
           <p>ONE Telecomunicaciones S.A.S. · Área de Soporte Técnico y Redes</p>
         </div>
         <div className="head-right">
+          <span className="badge live-pill" style={{ color: '#10b981', background: '#10b9811a' }}>
+            <RefreshCw size={13} /> {actualizado ? `Actualizado ${actualizado.toLocaleTimeString('es-CO')}` : 'Conectando…'}
+          </span>
           <button className="btn btn-ghost" onClick={exportCSV}><Download size={16} /> Exportar CSV</button>
           <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={16} /> Imprimir</button>
           <Link to="/incidencias/nueva" className="btn btn-primary">+ Nueva incidencia</Link>

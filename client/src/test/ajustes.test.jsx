@@ -34,13 +34,13 @@ describe('Ajustes', () => {
 });
 
 describe('Ajustes dentro de la app completa', () => {
-  test('abre /ajustes con sesión sin lanzar errores', () => {
+  test('abre /ajustes con sesión sin lanzar errores', async () => {
     localStorage.setItem('one_soporte_token', 'token-test');
     render(
       <MemoryRouter initialEntries={['/ajustes']}>
         <App />
       </MemoryRouter>
     );
-    expect(screen.getByRole('heading', { name: /ajustes/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /ajustes/i })).toBeInTheDocument();
   });
 });

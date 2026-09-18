@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings } from 'lucide-react';
+import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users } from 'lucide-react';
 import { getUser, setToken, setUser } from '../api.js';
 import { useTheme } from '../hooks/useTheme.js';
 
@@ -77,6 +77,12 @@ export default function Layout() {
               <span>{label}</span>
             </NavLink>
           ))}
+          {user?.rol === 'admin' && (
+            <NavLink to="/usuarios" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => setOpen(false)}>
+              <Users size={18} />
+              <span>Usuarios</span>
+            </NavLink>
+          )}
         </nav>
 
         <div className="sidebar-foot">

@@ -152,6 +152,29 @@ export default function IncidenciaDetail() {
       </section>
 
       <section className="card">
+        <h3>Historial de actividad</h3>
+        {(!inc.actividad || inc.actividad.length === 0) ? (
+          <p className="soft">Sin movimientos registrados.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead>
+              <tbody>
+                {inc.actividad.map((a) => (
+                  <tr key={a.id}>
+                    <td>{fmtFecha(a.creada_en)}</td>
+                    <td><strong>{a.usuario}</strong></td>
+                    <td><Badge color="#2563eb">{a.accion}</Badge></td>
+                    <td className="soft">{a.detalle || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card">
         <h3>Historial de diagnóstico</h3>
         {(!inc.respuestas || inc.respuestas.length === 0) ? (
           <p className="soft">Aún no se han registrado respuestas del checklist de diagnóstico.</p>

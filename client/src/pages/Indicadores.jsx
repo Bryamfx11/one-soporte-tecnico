@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, Line, LineChart
 } from 'recharts';
-import { Download, Printer } from 'lucide-react';
+import { Download, Printer, RefreshCw } from 'lucide-react';
 import { api, useApi } from '../api.js';
 import { useLiveData } from '../sse.js';
 import { Skeleton, SkeletonText, Empty } from '../components/ui.jsx';
@@ -12,8 +13,13 @@ const GRID = 'var(--border)';
 
 export default function Indicadores() {
   const { data, loading, error, reload } = useApi(() => api.get('/metrics/dashboard'), []);
+  const [actualizado, setActualizado] = useState(null);
 
-  useLiveData(reload);
+  useLiveData(reload, { onChange: () => setActualizado(new Date()) });
+
+  useEffect(() => {
+    if (data && !actualizado) setActualizado(new Date());
+  }, [data, actualizado]);
 
   if (loading && !data) {
     return (
@@ -62,6 +68,9 @@ export default function Indicadores() {
           <p>Indicadores alineados con los objetivos específicos (diagnosticar, analizar, proponer)</p>
         </div>
         <div className="head-right">
+          <span className="badge live-pill" style={{ color: '#10b981', background: '#10b9811a' }}>
+            <RefreshCw size={13} /> {actualizado ? `Actualizado ${actualizado.toLocaleTimeString('es-CO')}` : 'Conectando…'}
+          </span>
           <button className="btn btn-ghost" onClick={exportCSV}><Download size={16} /> Exportar CSV</button>
           <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={16} /> Imprimir</button>
         </div>
