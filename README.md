@@ -41,8 +41,10 @@ El proyecto implementa los tres objetivos específicos del plan:
 
 - **Autenticación**: login con JWT, roles (admin/técnico), rutas protegidas y registro exclusivo de administradores; verificación de contraseña con tiempos constantes (evita enumerar qué correos están registrados)
 - **Seguridad**: secreto JWT aleatorio por arranque cuando no viene del entorno (en desarrollo) y obligatorio en producción, rate limiting por ruta, cabeceras de seguridad (CSP, etc.), CORS restringido por orígenes permitidos y contraseñas cifradas con bcrypt
-- **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico
+- **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico con indicador visual de último refresco
 - **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio, flujo de ciclo de vida; número de ticket con reintento ante colisiones y casos cerrados (resuelta/escalada) que no se reabren por API
+- **Auditoría por incidencia**: tabla `actividad` con cada movimiento (creación, edición, diagnóstico, cierre y eliminación) con usuario, acción y detalle
+- **Gestión de usuarios (admin)**: listado y activación/desactivación de cuentas; las cuentas desactivadas no pueden ingresar ni mantener sesión
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
   - Medición de campo (nivel óptico dBm, velocidad Mbps, pérdida de paquetes)
   - Referencia esperada por cada paso
@@ -120,7 +122,7 @@ npm run test:client   # Componentes y utilidades (Vitest + Testing Library)
 npm run lint          # ESLint (server y cliente)
 ```
 
-CI (GitHub Actions) ejecuta `npm run lint` + `npm test` en cada push/PR a `master`.
+CI (GitHub Actions) ejecuta `npm run lint` + `npm test` + `npm run build` en cada push/PR a `master`.
 
 ---
 
@@ -137,6 +139,7 @@ Configure previamente las variables de entorno descritas arriba
 (`JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` y opcionalmente `ALLOWED_ORIGINS`).
 
 Límites por omisión de la API: **300 peticiones/min** en `/api` y **10 peticiones/min** en `/api/auth`.
+Con `NODE_ENV=production` la API registra cada petición (`método ruta status duración`) en la salida estándar.
 
 Antes de actualizar la versión desplegada, respalda la base de datos:
 
@@ -162,10 +165,11 @@ one-soporte-tecnico/
 │   ├── seed.js                          # Datos de ejemplo (checklists FTTH, causas)
 │   ├── routes/
 │   │   ├── auth.js                      # Login, registro y perfil
-│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado
+│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado + auditoría
 │   │   ├── checklists.js                # Base de conocimiento y causas raíz
 │   │   ├── metrics.js                   # Indicadores del dashboard
-│   │   └── tecnicos.js
+│   │   ├── tecnicos.js
+│   │   └── usuarios.js                  # Listado y activación de cuentas (admin)
 │   └── test/                            # Pruebas de API y validación
 └── client/                              # React (Vite)
     └── src/
@@ -178,6 +182,7 @@ one-soporte-tecnico/
         │   ├── Conocimiento.jsx         # Base de conocimiento
         │   ├── Indicadores.jsx          # Métricas del plan de mejora
         │   ├── Ajustes.jsx              # Tema y criterios del plan de mejora
+        │   ├── Usuarios.jsx             # Gestión de cuentas (solo admin)
         │   └── NotFound.jsx             # Error 404
         ├── components/
         │   ├── Layout.jsx               # Sidebar, topbar móvil y navegación
@@ -188,7 +193,8 @@ one-soporte-tecnico/
         │   ├── useFocusTrap.js          # Trampa de foco para modales
         │   └── useTheme.js              # Tema claro/oscuro persistente
         ├── test/                        # Pruebas de componentes
-        └── api.js                       # Cliente HTTP, sesión y hook useApi
+        ├── api.js                       # Cliente HTTP, sesión y hook useApi
+        └── sse.js                       # Hook de datos en tiempo real (Server-Sent Events)
 ```
 
 ---
