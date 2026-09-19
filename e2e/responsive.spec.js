@@ -60,19 +60,26 @@ test.describe('escritorio', () => {
     await expect(page.locator('.sidebar')).toBeVisible();
   });
 
-  test('el sidebar sube junto con el contenido al hacer scroll', async ({ page }) => {
+  test('el sidebar queda compacto y fijo arriba al hacer scroll', async ({ page }) => {
     await login(page);
     await page.goto('/incidencias', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(600);
+    const antes = await page.evaluate(() => {
+      const s = document.querySelector('.sidebar').getBoundingClientRect();
+      return { top: Math.round(s.top), height: Math.round(s.height), innerH: window.innerHeight, scrollH: document.documentElement.scrollHeight };
+    });
     await page.evaluate(() => window.scrollTo(0, 99999));
     await page.waitForTimeout(300);
-    const datos = await page.evaluate(() => {
+    const despues = await page.evaluate(() => {
       const s = document.querySelector('.sidebar').getBoundingClientRect();
       const c = document.querySelector('.content').getBoundingClientRect();
-      return { sidebarTop: Math.round(s.top), sidebarBottom: Math.round(s.bottom), contentBottom: Math.round(c.bottom) };
+      return { top: Math.round(s.top), contentTop: Math.round(c.top), scrollY: Math.round(window.scrollY) };
     });
-    expect(datos.sidebarTop).toBeLessThan(0);
-    expect(Math.abs(datos.sidebarBottom - datos.contentBottom)).toBeLessThanOrEqual(2);
+    expect(antes.scrollH).toBeGreaterThan(antes.innerH);
+    expect(antes.height).toBeLessThan(antes.innerH);
+    expect(despues.scrollY).toBeGreaterThan(0);
+    expect(despues.contentTop).toBeLessThan(0);
+    expect(despues.top, 'el sidebar no baja con el contenido').toBe(0);
   });
 
   test('en pantalla ancha el contenido queda centrado y no se desborda', async ({ page }) => {
