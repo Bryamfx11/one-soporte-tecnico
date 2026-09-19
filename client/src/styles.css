@@ -100,10 +100,6 @@ html { overflow-x: clip; }
   display: flex;
   flex-direction: column;
   padding: 20px 14px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
 }
 
 .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 20px; border-bottom: 1px solid var(--sidebar-border); margin-bottom: 16px; }

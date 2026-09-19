@@ -47,10 +47,25 @@ async function crearIncidencia(page) {
 test.describe('escritorio', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  test('topbar oculto y sidebar fija visible', async ({ page }) => {
+  test('topbar oculto y sidebar visible en flujo normal', async ({ page }) => {
     await login(page);
     await expect(page.locator('.topbar')).toBeHidden();
     await expect(page.locator('.sidebar')).toBeVisible();
+  });
+
+  test('el sidebar sube junto con el contenido al hacer scroll', async ({ page }) => {
+    await login(page);
+    await page.goto('/incidencias', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(600);
+    await page.evaluate(() => window.scrollTo(0, 99999));
+    await page.waitForTimeout(300);
+    const datos = await page.evaluate(() => {
+      const s = document.querySelector('.sidebar').getBoundingClientRect();
+      const c = document.querySelector('.content').getBoundingClientRect();
+      return { sidebarTop: Math.round(s.top), sidebarBottom: Math.round(s.bottom), contentBottom: Math.round(c.bottom) };
+    });
+    expect(datos.sidebarTop).toBeLessThan(0);
+    expect(Math.abs(datos.sidebarBottom - datos.contentBottom)).toBeLessThanOrEqual(2);
   });
 
   test('en pantalla ancha el contenido queda centrado y no se desborda', async ({ page }) => {
