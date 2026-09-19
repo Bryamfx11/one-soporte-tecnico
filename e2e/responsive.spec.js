@@ -36,6 +36,13 @@ async function evaluarDesborde(page) {
   });
 }
 
+async function evaluarEspacioMuerto(page) {
+  return page.evaluate(() => {
+    const content = document.querySelector('.content').getBoundingClientRect();
+    return { scrollH: document.documentElement.scrollHeight, contentBottom: Math.round(content.bottom), vacio: Math.round(document.documentElement.scrollHeight - content.bottom) };
+  });
+}
+
 async function crearIncidencia(page) {
   await page.goto('/incidencias/nueva');
   await page.getByLabel('Cliente *').fill('Cliente Movil');
@@ -90,6 +97,8 @@ test.describe('sin desbordes horizontales en ninguna ruta', () => {
         await page.waitForTimeout(450);
         const res = await evaluarDesborde(page);
         expect(res.malos, `${ancho}px ${ruta}: ${JSON.stringify(res.malos)}`).toEqual([]);
+        const vacio = await evaluarEspacioMuerto(page);
+        expect(vacio.vacio, `${ancho}px ${ruta}: espacio muerto bajo el contenido (scrollH=${vacio.scrollH}, contentBottom=${vacio.contentBottom})`).toBeLessThanOrEqual(2);
       }
     }
   });

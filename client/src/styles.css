@@ -541,6 +541,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 
 .sr-only {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   padding: 0;
