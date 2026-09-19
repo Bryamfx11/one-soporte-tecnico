@@ -9,3 +9,6 @@ dist/
 test-results/
 playwright-report/
 e2e/.tmp/
+# DBeaver (generado por error al lanzar desde esta carpeta)
+workspace/
+
