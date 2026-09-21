@@ -53,4 +53,6 @@ Soporte técnico platform (ONETec) — React 19 + Vite in `client/`, Express 4 i
 
 - `npm run build` then `pm2 start ecosystem.config.cjs` (runs `server/index.js`; serves the built client statically from `client/dist` when present). Set `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` first
 - Schedule `npm run backup` before upgrades (respaldo SQLite vía `VACUUM INTO`)
+- HTTPS con **Caddy** (repo root `Caddyfile`): TLS automático Let's Encrypt, redirige HTTP→HTTPS y reversa proxy a `127.0.0.1:4000`. Requisitos: apuntar el registro A del dominio al servidor y abrir 80/443. El bloque `reverse_proxy` usa `flush_interval -1` porque el SSE del tablero (`/api/sse/events`) necesita streaming sin buffering. Con Caddy/nginx en la misma máquina `TRUST_PROXY=loopback` alcanza para que el rate limiter vea las IPs reales; si el proxy está en otro host, poner su IP/Host real
+- Monitoreo: `GET /api/health` (verifica BD y reporta `backups`) se puede apuntar con un uptime-checker externo. Los backups automáticos se activan solos con `NODE_ENV=production` (o `AUTO_BACKUP=1`); hora configurable `AUTO_BACKUP_HOUR`
 - CI: GitHub Actions (`npm run lint` + `npm test` + `npm run build`) corre en push/PR a `master`

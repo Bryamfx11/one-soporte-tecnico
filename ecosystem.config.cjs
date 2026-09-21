@@ -11,12 +11,18 @@ module.exports = {
         JWT_SECRET: process.env.JWT_SECRET || '',
         ADMIN_EMAIL: process.env.ADMIN_EMAIL || '',
         ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',
+        // Incluir el origen https del dominio para peticiones directas desde el navegador
         ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4000',
-        TRUST_PROXY: process.env.TRUST_PROXY || 'loopback'
+        // Caddy/nginx en la misma máquina: loopback es suficiente para ver IPs reales
+        TRUST_PROXY: process.env.TRUST_PROXY || 'loopback',
+        // Backup automático diario (hora en 24h, zona del servidor). NODE_ENV=production ya lo activa.
+        AUTO_BACKUP_HOUR: process.env.AUTO_BACKUP_HOUR || '3'
       },
       max_memory_restart: '200M',
       autorestart: true,
-      restart_delay: 3000
+      restart_delay: 3000,
+      instances: 1,
+      time: true
     }
   ]
 };
