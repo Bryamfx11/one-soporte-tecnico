@@ -7,6 +7,7 @@ import { db } from './db.js';
 import { requireAuth } from './auth.js';
 import { rateLimit, securityHeaders, corsMiddleware } from './security.js';
 import { sseHandler } from './sse.js';
+import { estadoBackups } from './monitor.js';
 import { authRouter } from './routes/auth.js';
 import { portalRouter } from './routes/portal.js';
 import { incidentsRouter } from './routes/incidents.js';
@@ -56,7 +57,8 @@ app.get('/api/health', (_req, res) => {
       db: 'ok',
       incidencias: total,
       uptime: Math.round(process.uptime()),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      backups: estadoBackups()
     });
   } catch {
     res.status(503).json({ ok: false, db: 'error', error: 'Error consultando la base de datos' });

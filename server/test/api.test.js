@@ -45,6 +45,8 @@ test('GET /api/health reporta el estado de la base de datos', async () => {
   assert.equal(res.body.db, 'ok');
   assert.equal(typeof res.body.incidencias, 'number');
   assert.equal(typeof res.body.uptime, 'number');
+  assert.equal(typeof res.body.backups, 'object');
+  assert.equal(typeof res.body.backups.cantidad, 'number');
 });
 
 test('Ruta protegida sin token responde 401', async () => {

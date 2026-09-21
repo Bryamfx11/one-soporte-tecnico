@@ -10,7 +10,7 @@ Soporte técnico platform (ONETec) — React 19 + Vite in `client/`, Express 4 i
 - E2E: `npm run test:e2e` (Playwright, chromium). Builds the client and boots the real server on port 4173 with an **isolated DB** (`e2e/.tmp/e2e.db`, deleted before each run) via `scripts/e2e-server.cjs`. Seed dev: `admin@one.com/admin123`, `bryam@one.com/tecnico123`; the fresh seed yields 24 incidencias and 6 pendientes (tests assert these concrete numbers). Tests live in `e2e/*.spec.js` (Spanish names) and are serial (`workers: 1`)
 - Lint: `npm run lint` (ESLint 9 flat config per package; `eslint.config.js` in `server/` and `client/`). **There is no typecheck** — gate is `lint` + `test` + `build`
 - Single file: `cd server && node --test test/validate.test.js` · `cd client && npx vitest run src/test/utils.test.js`
-- Backup de la BD: `npm run backup` (snapshot `VACUUM INTO` en `server/backups/`, conserva `BACKUP_KEEP` copias; sobreescribible con `BACKUP_DIR`)
+- Backup de la BD: `npm run backup` (snapshot `VACUUM INTO` en `server/backups/`, conserva `BACKUP_KEEP` copias; sobreescribible con `BACKUP_DIR`). La lógica vive en `server/backup.js` (`crearBackup`/`podarBackups`, exportados para tests) y `server/index.js` programa un backup diario a las `AUTO_BACKUP_HOUR` (03:00) cuando `NODE_ENV=production` o `AUTO_BACKUP=1`. `GET /api/health` reporta `backups: { ultimo, cantidad, guardados }`
 - Build (prod, client only): `npm run build` → `client/dist`
 
 ## Requirements

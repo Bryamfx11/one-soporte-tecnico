@@ -4,28 +4,46 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = process.env.DB_PATH ?? path.join(__dirname, 'one.db');
-const BACKUP_DIR = process.env.BACKUP_DIR ?? path.join(__dirname, 'backups');
-const KEEP = Number(process.env.BACKUP_KEEP ?? 14);
 
-if (!fs.existsSync(DB_PATH)) {
-  console.error(`[backup] La base de datos no existe: ${DB_PATH}`);
-  process.exit(1);
+export const DB_PATH = process.env.DB_PATH ?? path.join(__dirname, 'one.db');
+export const BACKUP_DIR = process.env.BACKUP_DIR ?? path.join(__dirname, 'backups');
+export const BACKUP_KEEP = Number(process.env.BACKUP_KEEP ?? 14);
+
+export function podarBackups(keep = BACKUP_KEEP, dir = BACKUP_DIR) {
+  const backups = fs.readdirSync(dir).filter((name) => name.endsWith('.db')).sort();
+  const sobrantes = backups.slice(0, backups.length - keep);
+  for (const name of sobrantes) {
+    fs.rmSync(path.join(dir, name), { force: true });
+  }
+  return backups.length - sobrantes.length;
 }
 
-fs.mkdirSync(BACKUP_DIR, { recursive: true });
-
-const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-const dest = path.join(BACKUP_DIR, `one-${stamp}.db`);
-const destSafe = dest.replace(/'/g, "''");
-
-const db = new DatabaseSync(DB_PATH);
-db.exec(`VACUUM INTO '${destSafe}'`);
-db.close();
-
-const backups = fs.readdirSync(BACKUP_DIR).filter((name) => name.endsWith('.db')).sort();
-for (const name of backups.slice(0, backups.length - KEEP)) {
-  fs.rmSync(path.join(BACKUP_DIR, name));
+export function crearBackup() {
+  if (!fs.existsSync(DB_PATH)) {
+    throw new Error(`La base de datos no existe: ${DB_PATH}`);
+  }
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const dest = path.join(BACKUP_DIR, `one-${stamp}.db`);
+  const db = new DatabaseSync(DB_PATH);
+  try {
+    db.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
+  } finally {
+    db.close();
+  }
+  podarBackups();
+  return dest;
 }
 
-console.log(`[backup] ${dest}`);
+// Punto de entrada para `npm run backup`
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const dest = crearBackup();
+    console.log(`[backup] ${dest}`);
+    const restantes = podarBackups();
+    console.log(`[backup] Se conservan hasta ${BACKUP_KEEP} copias en ${BACKUP_DIR} (${restantes} en disco)`);
+  } catch (err) {
+    console.error(`[backup] ${err.message}`);
+    process.exit(1);
+  }
+}
