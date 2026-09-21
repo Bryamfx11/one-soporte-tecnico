@@ -6,11 +6,12 @@ import {
 } from '../validate.js';
 import { requireAdmin } from '../auth.js';
 import { notifyDataChange } from '../sse.js';
+import { enviarNotificacion } from '../notify.js';
 
 export const incidentsRouter = express.Router();
 
 const ESTADOS_VALIDOS = ['nueva', 'en_diagnostico', 'resuelta', 'escalada'];
-const CAMPOS_ACTUALIZABLES = ['cliente', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'prioridad', 'estado', 'tecnico_id', 'sintomas', 'descripcion'];
+const CAMPOS_ACTUALIZABLES = ['cliente', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'prioridad', 'estado', 'tecnico_id', 'sintomas', 'descripcion', 'email'];
 
 const INC_SELECT = `
   SELECT i.*, t.nombre AS tipo_falla, t.icono AS tipo_icono,
@@ -83,10 +84,10 @@ function siguienteTicket() {
   return db.prepare('SELECT valor FROM secuencias WHERE nombre = ?').get('ticket').valor;
 }
 
-function insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion }) {
+function insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion, email }) {
   const insert = db.prepare(`INSERT INTO incidencias
-    (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, creada_en)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
+    (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, email, creada_en)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
 
   for (let intento = 0; intento < 3; intento++) {
     const numero_ticket = `ONE-${String(siguienteTicket()).padStart(4, '0')}`;
@@ -99,6 +100,7 @@ function insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_i
         Number(tipo_falla_id), prioridad, 'nueva', tecnico_id ? Number(tecnico_id) : null,
         typeof sintomas === 'string' ? sintomas.trim() : '',
         typeof descripcion === 'string' ? descripcion.trim() : '',
+        typeof email === 'string' ? email.trim() : '',
         Date.now()
       );
       return Number(r.lastInsertRowid);
@@ -191,13 +193,13 @@ incidentsRouter.get('/:id', validateId, (req, res) => {
 incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, res) => {
   const {
     cliente, telefono = '', direccion = '', barrio = '',
-    tipo_falla_id, prioridad = 'media', tecnico_id = null, sintomas = '', descripcion = ''
+    tipo_falla_id, prioridad = 'media', tecnico_id = null, sintomas = '', descripcion = '', email = ''
   } = req.body;
 
   if (!existeTipoFalla(tipo_falla_id)) return res.status(400).json({ error: 'tipo_falla_id no existe' });
   if (tecnico_id && !existeTecnico(tecnico_id)) return res.status(400).json({ error: 'tecnico_id no existe' });
 
-  const nuevoId = insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion });
+  const nuevoId = insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion, email });
   registrarActividad(nuevoId, req.user.nombre, 'creada', 'Incidencia registrada');
   notifyDataChange();
   res.status(201).json(mapInc(buscarIncidenciaCompleta(nuevoId)));
@@ -213,6 +215,7 @@ incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentU
       return res.status(400).json({ error: `Transición de estado no permitida: ${inc.estado} → ${req.body.estado} (use el flujo de finalización para cerrar casos)` });
     }
   }
+  const estadoCambiado = req.body.estado !== undefined && String(req.body.estado) !== String(inc.estado);
   if (req.body.tipo_falla_id && !existeTipoFalla(req.body.tipo_falla_id)) {
     return res.status(400).json({ error: 'tipo_falla_id no existe' });
   }
@@ -241,7 +244,11 @@ incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentU
       notifyDataChange();
     }
   }
-  res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
+  const actualizado = buscarIncidenciaCompleta(req.params.id);
+  if (estadoCambiado) {
+    void enviarNotificacion({ tipo: 'estado', incidenciaId: Number(actualizado.id), destinatario: actualizado.email });
+  }
+  res.json(mapInc(actualizado));
 });
 
 incidentsRouter.post('/:id/diagnostico', validateId, validationMiddleware(validateDiagnostico), (req, res) => {
@@ -272,6 +279,9 @@ incidentsRouter.post('/:id/diagnostico', validateId, validationMiddleware(valida
     db.prepare("UPDATE incidencias SET estado = 'en_diagnostico' WHERE id = ?").run(inc.id);
     db.exec('COMMIT');
     registrarActividad(inc.id, req.user.nombre, 'diagnostico', `Checklist ${req.body.respuestas.length} respuestas`);
+    if (inc.estado !== 'en_diagnostico') {
+      void enviarNotificacion({ tipo: 'estado', incidenciaId: inc.id, destinatario: buscarIncidenciaCompleta(inc.id).email });
+    }
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
@@ -297,6 +307,7 @@ incidentsRouter.post('/:id/finalizar', validateId, validationMiddleware(validate
   db.prepare(`UPDATE incidencias SET estado = ?, causa_raiz_id = ?, solucion_aplicada = ?, resuelta_en = ? WHERE id = ?`)
     .run(estado, Number(req.body.causa_raiz_id), solucion.slice(0, 2000), resueltaEn, inc.id);
   registrarActividad(inc.id, req.user.nombre, 'cierre', `Caso cerrado como ${estado}`);
+  void enviarNotificacion({ tipo: 'cierre', incidenciaId: inc.id, destinatario: buscarIncidenciaCompleta(inc.id).email });
   notifyDataChange();
   res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
 });

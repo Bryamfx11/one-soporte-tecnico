@@ -14,6 +14,7 @@ import { checklistsRouter } from './routes/checklists.js';
 import { metricsRouter } from './routes/metrics.js';
 import { tecnicosRouter } from './routes/tecnicos.js';
 import { usuariosRouter } from './routes/usuarios.js';
+import { notificationsRouter } from './routes/notifications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const app = express();
@@ -74,6 +75,7 @@ app.use('/api/checklists', requireAuth, checklistsRouter);
 app.use('/api/metrics', requireAuth, metricsRouter);
 app.use('/api/tecnicos', requireAuth, tecnicosRouter);
 app.use('/api/usuarios', requireAuth, usuariosRouter);
+app.use('/api/notifications', requireAuth, notificationsRouter);
 app.get('/api/sse/events', requireAuth, sseHandler);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Ruta de API no encontrada' }));
 

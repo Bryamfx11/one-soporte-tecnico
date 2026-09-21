@@ -13,7 +13,7 @@ export default function NuevaIncidencia() {
   const { data: tipos, loading: loadingTipos, error: errorTipos } = useApi(() => apiGetEstatico('/checklists/tipos'), []);
   const { data: tecnicos } = useApi(() => apiGetEstatico('/tecnicos'), []);
 
-  const [form, setForm] = useState({ cliente: '', telefono: '', direccion: '', barrio: '', tipo_falla_id: '', prioridad: 'media', tecnico_id: '', sintomas: '', descripcion: '' });
+  const [form, setForm] = useState({ cliente: '', telefono: '', email: '', direccion: '', barrio: '', tipo_falla_id: '', prioridad: 'media', tecnico_id: '', sintomas: '', descripcion: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -72,6 +72,7 @@ export default function NuevaIncidencia() {
           <label>Teléfono<input value={form.telefono} onChange={set('telefono')} placeholder="3xx xxx xxxx" /></label>
           <label>Dirección<input value={form.direccion} onChange={set('direccion')} placeholder="Calle / Carrera, #" /></label>
           <label>Barrio<input value={form.barrio} onChange={set('barrio')} placeholder="Barrio" /></label>
+          <label>Correo del cliente<input type="email" value={form.email} onChange={set('email')} placeholder="cliente@correo.com (recibe avisos de estado)" /></label>
         </div>
 
         <h3 className="form-title">Datos de la incidencia</h3>

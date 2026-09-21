@@ -964,3 +964,126 @@ test('GET /api/portal/incidencias/:ticket inexistente o inválido responde 404',
     .query({ clave: '123456' });
   assert.equal(invalido.status, 404);
 });
+
+test('POST /api/incidents guarda el correo del cliente', async () => {
+  const tipo = await primerTipoFalla();
+  const res = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Con Correo', tipo_falla_id: tipo.id, email: 'cliente@correo.co' });
+  assert.equal(res.status, 201);
+  const det = await request(app)
+    .get(`/api/incidents/${res.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(det.body.email, 'cliente@correo.co');
+});
+
+test('PATCH /api/incidents/:id actualiza el correo del cliente', async () => {
+  const tipo = await primerTipoFalla();
+  const creada = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Correo Update', tipo_falla_id: tipo.id, email: 'viejo@correo.co' });
+  const res = await request(app)
+    .patch(`/api/incidents/${creada.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ email: 'nuevo@correo.co' });
+  assert.equal(res.status, 200);
+  const det = await request(app)
+    .get(`/api/incidents/${res.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(det.body.email, 'nuevo@correo.co');
+});
+
+test('PATCH /api/incidents/:id rechaza correo inválido', async () => {
+  const tipo = await primerTipoFalla();
+  const creada = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Correo Malo', tipo_falla_id: tipo.id });
+  const res = await request(app)
+    .patch(`/api/incidents/${creada.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ email: 'no-es-un-email' });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/portal/reportes guarda el correo del cliente', async () => {
+  const tipo = await primerTipoFalla();
+  const res = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: 'Con Correo', tipo_falla_id: tipo.id, email: 'cliente@correo.co' });
+  assert.equal(res.status, 201);
+  const det = await request(app)
+    .get(`/api/incidents/${res.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(det.body.email, 'cliente@correo.co');
+});
+
+test('POST /api/portal/reportes rechaza correo inválido', async () => {
+  const tipo = await primerTipoFalla();
+  const res = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: 'Correo Malo', tipo_falla_id: tipo.id, email: 'no-es-un-email' });
+  assert.equal(res.status, 400);
+});
+
+test('GET /api/notifications/config sin token responde 401', async () => {
+  const res = await request(app).get('/api/notifications/config');
+  assert.equal(res.status, 401);
+});
+
+test('GET /api/notifications/config con rol técnico responde 403', async () => {
+  const res = await request(app)
+    .get('/api/notifications/config')
+    .set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(res.status, 403);
+});
+
+test('GET /api/notifications/config devuelve el estado (admin)', async () => {
+  const res = await request(app)
+    .get('/api/notifications/config')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+  assert.equal(typeof res.body.configurado, 'boolean');
+  assert.equal(typeof res.body.passConfigurada, 'boolean');
+});
+
+test('PUT /api/notifications/config valida campos', async () => {
+  const res = await request(app)
+    .put('/api/notifications/config')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ habilitada: 'si', host: 'h', from: 'no-valido' });
+  assert.equal(res.status, 400);
+});
+
+test('PUT /api/notifications/config guarda y devuelve (admin)', async () => {
+  const res = await request(app)
+    .put('/api/notifications/config')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ habilitada: true, host: 'smtp.test.local', port: 587, user: 'bot@one.com', pass: 'secreto', from: 'no-reply@one.com', fromName: 'ONETec' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.configurado, true);
+  assert.equal(res.body.host, 'smtp.test.local');
+  assert.equal(res.body.passConfigurada, true);
+});
+
+test('POST /api/notifications/test con SMTP inalcanzable responde 502', async () => {
+  await request(app)
+    .put('/api/notifications/config')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ habilitada: true, host: '127.0.0.1', port: 1, user: 'bot@one.com', pass: 'secreto', from: 'no-reply@one.com', fromName: 'ONETec' });
+  const res = await request(app)
+    .post('/api/notifications/test')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 502);
+  assert.match(res.body.error, /No se pudo enviar/);
+});
+
+test('GET /api/notifications/historial devuelve la lista (admin)', async () => {
+  const res = await request(app)
+    .get('/api/notifications/historial')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body));
+});

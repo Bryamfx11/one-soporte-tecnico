@@ -25,6 +25,19 @@ function campoTextoOpcional(errors, body, campo, max, msg) {
   }
 }
 
+function campoEmailOpcional(errors, body, campo = 'email') {
+  if (body[campo] === undefined || body[campo] === null) return;
+  if (typeof body[campo] !== 'string' || body[campo].length > 254) {
+    errors.push(`${campo} debe ser un texto de hasta 254 caracteres`);
+    return;
+  }
+  const v = body[campo].trim();
+  if (v === '') return;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) {
+    errors.push(`${campo} tiene un formato inválido`);
+  }
+}
+
 function campoTextoOpcionalMin(errors, body, campo, min, max, msg) {
   if (body[campo] === undefined || body[campo] === null) return;
   if (typeof body[campo] !== 'string' || body[campo].trim().length < min) {
@@ -49,6 +62,7 @@ export function validateIncidentCreate(body) {
   campoTextoOpcional(errors, body, 'barrio', 100);
   campoTextoOpcional(errors, body, 'sintomas', 1000);
   campoTextoOpcional(errors, body, 'descripcion', 2000);
+  campoEmailOpcional(errors, body);
   if (body.tecnico_id !== undefined && body.tecnico_id !== null && body.tecnico_id !== '') {
     const tid = Number(body.tecnico_id);
     if (!Number.isInteger(tid) || tid < 1) {
@@ -59,7 +73,7 @@ export function validateIncidentCreate(body) {
   return errors;
 }
 
-const CAMPOS_PORTAL = ['nombre', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'sintomas', 'descripcion', 'empresa'];
+const CAMPOS_PORTAL = ['nombre', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'sintomas', 'descripcion', 'email', 'empresa'];
 
 export function validatePortalReporte(body) {
   const errors = [];
@@ -79,13 +93,14 @@ export function validatePortalReporte(body) {
   }
   campoTextoOpcional(errors, body, 'sintomas', 1000);
   campoTextoOpcional(errors, body, 'descripcion', 2000);
+  campoEmailOpcional(errors, body);
 
   return errors;
 }
 
 export function validateIncidentUpdate(body) {
   const errors = [];
-  const allowed = ['cliente', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'prioridad', 'estado', 'tecnico_id', 'sintomas', 'descripcion'];
+  const allowed = ['cliente', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'prioridad', 'estado', 'tecnico_id', 'sintomas', 'descripcion', 'email'];
 
   for (const key of Object.keys(body)) {
     if (!allowed.includes(key)) {
@@ -99,6 +114,7 @@ export function validateIncidentUpdate(body) {
   campoTextoOpcional(errors, body, 'barrio', 100);
   campoTextoOpcional(errors, body, 'sintomas', 1000);
   campoTextoOpcional(errors, body, 'descripcion', 2000);
+  campoEmailOpcional(errors, body);
   if (body.estado !== undefined && !ESTADOS_VALIDOS.includes(body.estado)) {
     errors.push(`estado debe ser una de: ${ESTADOS_VALIDOS.join(', ')}`);
   }

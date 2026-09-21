@@ -108,6 +108,24 @@ CREATE TABLE IF NOT EXISTS secuencias (
   nombre TEXT PRIMARY KEY,
   valor INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS config (
+  clave TEXT PRIMARY KEY,
+  valor TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS notificaciones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  incidencia_id INTEGER REFERENCES incidencias(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL DEFAULT 'estado',
+  destinatario TEXT NOT NULL,
+  asunto TEXT NOT NULL DEFAULT '',
+  estado TEXT NOT NULL DEFAULT 'omitido',
+  error TEXT NOT NULL DEFAULT '',
+  creada_en INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notif_inc ON notificaciones(incidencia_id);
 `);
 
 const usuarioCols = db.prepare("SELECT name FROM pragma_table_info('usuarios')").all().map((c) => c.name);
@@ -118,6 +136,9 @@ if (!usuarioCols.includes('activo')) {
 const incidenteCols = db.prepare("SELECT name FROM pragma_table_info('incidencias')").all().map((c) => c.name);
 if (!incidenteCols.includes('clave_seguimiento')) {
   db.exec('ALTER TABLE incidencias ADD COLUMN clave_seguimiento TEXT DEFAULT NULL');
+}
+if (!incidenteCols.includes('email')) {
+  db.exec("ALTER TABLE incidencias ADD COLUMN email TEXT NOT NULL DEFAULT ''");
 }
 
 seedIfEmpty();

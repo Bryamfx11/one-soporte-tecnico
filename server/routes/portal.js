@@ -3,6 +3,7 @@ import { randomInt } from 'node:crypto';
 import { db } from '../db.js';
 import { validatePortalReporte, validationMiddleware } from '../validate.js';
 import { notifyDataChange } from '../sse.js';
+import { enviarNotificacion } from '../notify.js';
 
 export const portalRouter = express.Router();
 
@@ -37,8 +38,8 @@ portalRouter.post('/reportes', validationMiddleware(validatePortalReporte), (req
   }
 
   const insert = db.prepare(`INSERT INTO incidencias
-    (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, creada_en, clave_seguimiento)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    (numero_ticket, cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, estado, tecnico_id, sintomas, descripcion, email, creada_en, clave_seguimiento)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
 
   for (let intento = 0; intento < 3; intento++) {
     const numero_ticket = `ONE-${String(siguienteTicket()).padStart(4, '0')}`;
@@ -56,11 +57,14 @@ portalRouter.post('/reportes', validationMiddleware(validatePortalReporte), (req
         null,
         typeof req.body.sintomas === 'string' ? req.body.sintomas.trim() : '',
         typeof req.body.descripcion === 'string' ? req.body.descripcion.trim() : '',
+        typeof req.body.email === 'string' ? req.body.email.trim() : '',
         Date.now(),
         clave_seguimiento
       );
+      const id = Number(r.lastInsertRowid);
       notifyDataChange();
-      return res.status(201).json({ numero_ticket, clave_seguimiento, id: Number(r.lastInsertRowid) });
+      void enviarNotificacion({ tipo: 'registro', incidenciaId: id, destinatario: req.body.email, clave: clave_seguimiento });
+      return res.status(201).json({ numero_ticket, clave_seguimiento, id });
     } catch (err) {
       if (esColisionDeTicket(err)) continue;
       throw err;

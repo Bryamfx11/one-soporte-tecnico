@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  User, MapPin, Phone, Play, Save, X,
+  User, MapPin, Phone, Mail, Play, Save, X,
   ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2
 } from 'lucide-react';
 import { api, apiGetEstatico, getUser, useApi } from '../api.js';
@@ -30,6 +30,8 @@ export default function IncidenciaDetail() {
   const [tecError, setTecError] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [emailEdit, setEmailEdit] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
 
   useDirtyGuard(wizardOpen);
 
@@ -38,6 +40,26 @@ export default function IncidenciaDetail() {
   useEffect(() => {
     if (tecnicoActivo !== '') setTecnicoSel(tecnicoActivo);
   }, [tecnicoActivo]);
+
+  const emailInc = inc?.email ?? '';
+  useEffect(() => {
+    setEmailEdit(emailInc);
+  }, [emailInc]);
+
+  async function guardarEmail(e) {
+    e.preventDefault();
+    if (emailEdit.trim() === (inc.email ?? '')) return;
+    setSavingEmail(true);
+    try {
+      await api.patch(`/incidents/${inc.id}`, { email: emailEdit.trim() });
+      reload();
+      showToast('success', 'Correo actualizado; el cliente recibirá avisos de estado.');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setSavingEmail(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -109,6 +131,12 @@ export default function IncidenciaDetail() {
             <li><Phone size={16} /> {inc.telefono || '—'}</li>
             <li><MapPin size={16} /> {inc.direccion || '—'}, {inc.barrio || '—'}</li>
           </ul>
+          <form className="inline-form email-edit" onSubmit={guardarEmail}>
+            <Mail size={16} />
+            <input type="email" value={emailEdit} onChange={(e) => setEmailEdit(e.target.value)} placeholder="correo para avisos de estado" aria-label="Correo del cliente" />
+            <button type="submit" className="btn btn-secondary" disabled={savingEmail}><Save size={14} /> {savingEmail ? '…' : 'Guardar'}</button>
+          </form>
+          <p className="soft email-hint">El cliente recibe un correo en cada cambio de estado.</p>
           <h3 className="mt">Síntomas reportados</h3>
           <p className="soft">{inc.sintomas || '—'}</p>
           <h3 className="mt">Descripción</h3>

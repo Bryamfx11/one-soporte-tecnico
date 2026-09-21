@@ -6,7 +6,7 @@ import { ESTADOS, PRIORIDADES, ESTADO_COLOR, fmtFecha, fmtTiempo } from '../util
 
 export default function Reportar() {
   const [tipos, setTipos] = useState([]);
-  const [reporte, setReporte] = useState({ nombre: '', telefono: '', direccion: '', barrio: '', tipo_falla_id: '', sintomas: '', descripcion: '', empresa: '' });
+  const [reporte, setReporte] = useState({ nombre: '', telefono: '', email: '', direccion: '', barrio: '', tipo_falla_id: '', sintomas: '', descripcion: '', empresa: '' });
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [resultado, setResultado] = useState(null);
@@ -84,6 +84,10 @@ export default function Reportar() {
             <label>
               <span>Teléfono</span>
               <input value={reporte.telefono} onChange={(e) => setCampo('telefono', e.target.value)} placeholder="Ej: 300 000 0000" autoComplete="tel" />
+            </label>
+            <label>
+              <span>Correo (para recibir avisos de estado)</span>
+              <input type="email" value={reporte.email} onChange={(e) => setCampo('email', e.target.value)} placeholder="cliente@correo.com" autoComplete="email" />
             </label>
             <label>
               <span>Barrio</span>
