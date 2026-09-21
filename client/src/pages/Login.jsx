@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 import { api, setToken, setUser } from '../api.js';
 
@@ -67,6 +67,9 @@ export default function Login() {
           <LogIn size={16} /> {saving ? 'Ingresando…' : 'Iniciar sesión'}
         </button>
       </form>
+      <p className="login-hint portal-login-foot">
+        ¿Es cliente y tiene una novedad? <Link to="/reportar">Repórtela aquí</Link>
+      </p>
     </div>
   );
 }

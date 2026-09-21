@@ -852,3 +852,115 @@ test('DELETE /api/checklists/causas-raiz/:id sin incidencias elimina (admin)', a
     .set('Authorization', `Bearer ${adminToken}`);
   assert.equal(res.status, 200);
 });
+
+async function primerTipoFalla() {
+  const res = await request(app).get('/api/portal/tipos');
+  return res.body[0];
+}
+
+test('GET /api/portal/tipos responde sin token', async () => {
+  const res = await request(app).get('/api/portal/tipos');
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body) && res.body.length > 0);
+  assert.equal(typeof res.body[0].nombre, 'string');
+});
+
+test('POST /api/portal/reportes sin token crea incidencia pública', async () => {
+  const tipo = await primerTipoFalla();
+  const clientePubl = `Cliente Público ${Date.now()}`;
+  const res = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: clientePubl, telefono: '3001112233', barrio: 'San José', tipo_falla_id: tipo.id, sintomas: 'Sin internet desde ayer' });
+  assert.equal(res.status, 201);
+  assert.match(res.body.numero_ticket, /^ONE-\d{4}$/);
+  assert.match(res.body.clave_seguimiento, /^\d{6}$/);
+
+  const detalle = await request(app)
+    .get(`/api/incidents/${res.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(detalle.status, 200);
+  assert.equal(detalle.body.cliente, clientePubl);
+  assert.equal(detalle.body.estado, 'nueva');
+  assert.equal(detalle.body.prioridad, 'media');
+  assert.equal(detalle.body.tecnico_id, null);
+});
+
+test('POST /api/portal/reportes rechaza tipo de falla inexistente', async () => {
+  const res = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: 'Cliente X', tipo_falla_id: 99999 });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/portal/reportes valida campos obligatorios', async () => {
+  const tipo = await primerTipoFalla();
+  const sinNombre = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: '  ', tipo_falla_id: tipo.id });
+  assert.equal(sinNombre.status, 400);
+
+  const sinTipo = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: 'Cliente Y' });
+  assert.equal(sinTipo.status, 400);
+});
+
+test('POST /api/portal/reportes rechaza campos no permitidos (sin escalada)', async () => {
+  const tipo = await primerTipoFalla();
+  const res = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: 'Cliente Z', tipo_falla_id: tipo.id, estado: 'resuelta', tecnico_id: 1 });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/portal/reportes con honeypot no crea incidencia', async () => {
+  const tipo = await primerTipoFalla();
+  const antes = (await request(app).get('/api/health')).body.incidencias;
+  const res = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: 'Bot', empresa: 'http://spam', tipo_falla_id: tipo.id });
+  assert.equal(res.status, 201);
+  const despues = (await request(app).get('/api/health')).body.incidencias;
+  assert.equal(despues, antes);
+});
+
+test('GET /api/portal/incidencias/:ticket con clave correcta devuelve estado sin datos de contacto', async () => {
+  const tipo = await primerTipoFalla();
+  const creada = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: 'Rastreo', telefono: '3001112233', direccion: 'Calle 1 #2-3', tipo_falla_id: tipo.id });
+  const consulta = await request(app)
+    .get(`/api/portal/incidencias/${creada.body.numero_ticket}`)
+    .query({ clave: creada.body.clave_seguimiento });
+  assert.equal(consulta.status, 200);
+  assert.equal(consulta.body.estado, 'nueva');
+  assert.equal(consulta.body.numero_ticket, creada.body.numero_ticket);
+  assert.equal(consulta.body.tipo_falla, tipo.nombre);
+  assert.equal(consulta.body.cliente, undefined);
+  assert.equal(consulta.body.telefono, undefined);
+  assert.equal(consulta.body.direccion, undefined);
+  assert.equal(consulta.body.clave_seguimiento, undefined);
+});
+
+test('GET /api/portal/incidencias/:ticket con clave incorrecta responde 404', async () => {
+  const tipo = await primerTipoFalla();
+  const creada = await request(app)
+    .post('/api/portal/reportes')
+    .send({ nombre: 'Clave Mala', tipo_falla_id: tipo.id });
+  const res = await request(app)
+    .get(`/api/portal/incidencias/${creada.body.numero_ticket}`)
+    .query({ clave: '000000' });
+  assert.equal(res.status, 404);
+});
+
+test('GET /api/portal/incidencias/:ticket inexistente o inválido responde 404', async () => {
+  const inexistente = await request(app)
+    .get('/api/portal/incidencias/ONE-9999')
+    .query({ clave: '123456' });
+  assert.equal(inexistente.status, 404);
+
+  const invalido = await request(app)
+    .get('/api/portal/incidencias/abc')
+    .query({ clave: '123456' });
+  assert.equal(invalido.status, 404);
+});

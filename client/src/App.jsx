@@ -16,6 +16,7 @@ const Indicadores = lazy(() => import('./pages/Indicadores.jsx'));
 const Ajustes = lazy(() => import('./pages/Ajustes.jsx'));
 const Usuarios = lazy(() => import('./pages/Usuarios.jsx'));
 const Tecnicos = lazy(() => import('./pages/Tecnicos.jsx'));
+const Reportar = lazy(() => import('./pages/Reportar.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 function Fallback() {
@@ -39,6 +40,7 @@ export default function App() {
       <Suspense fallback={<Fallback />}>
         <Routes>
           <Route path="/login" element={<LoginRoute />} />
+          <Route path="/reportar" element={<Reportar />} />
           <Route element={<RequireAuth><Layout /></RequireAuth>}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/incidencias" element={<Incidencias />} />

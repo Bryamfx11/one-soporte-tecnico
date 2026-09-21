@@ -115,6 +115,11 @@ if (!usuarioCols.includes('activo')) {
   db.exec('ALTER TABLE usuarios ADD COLUMN activo INTEGER NOT NULL DEFAULT 1');
 }
 
+const incidenteCols = db.prepare("SELECT name FROM pragma_table_info('incidencias')").all().map((c) => c.name);
+if (!incidenteCols.includes('clave_seguimiento')) {
+  db.exec('ALTER TABLE incidencias ADD COLUMN clave_seguimiento TEXT DEFAULT NULL');
+}
+
 seedIfEmpty();
 
 if (db.prepare("SELECT COUNT(*) AS c FROM secuencias WHERE nombre = 'ticket'").get().c === 0) {

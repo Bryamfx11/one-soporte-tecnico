@@ -8,6 +8,7 @@ import { requireAuth } from './auth.js';
 import { rateLimit, securityHeaders, corsMiddleware } from './security.js';
 import { sseHandler } from './sse.js';
 import { authRouter } from './routes/auth.js';
+import { portalRouter } from './routes/portal.js';
 import { incidentsRouter } from './routes/incidents.js';
 import { checklistsRouter } from './routes/checklists.js';
 import { metricsRouter } from './routes/metrics.js';
@@ -63,6 +64,9 @@ app.get('/api/health', (_req, res) => {
 
 // Rutas públicas de autenticación
 app.use('/api/auth', authRouter);
+
+// Portal público del cliente: reportes sin login y seguimiento por ticket + clave
+app.use('/api/portal', rateLimit({ windowMs: 60000, max: process.env.NODE_ENV === 'production' ? 15 : 1000, message: 'Demasiadas solicitudes, intente más tarde' }), portalRouter);
 
 // Rutas protegidas
 app.use('/api/incidents', requireAuth, incidentsRouter);

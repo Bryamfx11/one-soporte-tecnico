@@ -536,6 +536,54 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 }
 .login-hint p { margin: 2px 0; }
 
+/* ---------- Portal del cliente ---------- */
+.portal-wrap {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%);
+  padding: 40px 16px 48px;
+}
+.portal-brand { text-align: center; margin-bottom: 20px; }
+.portal-brand h1 { margin: 8px 0 4px; font-size: 22px; color: #fff; }
+.portal-brand p { margin: 0; font-size: 13px; color: #cbd5e1; }
+.portal-grid { max-width: 980px; margin: 0 auto; align-items: start; }
+.portal-grid .card { box-shadow: 0 20px 40px rgba(2, 6, 23, 0.35); }
+.portal-wrap .form label span,
+.portal-wrap .form-row span { color: var(--text); }
+.portal-honeypot {
+  position: absolute !important;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.portal-result {
+  position: relative;
+  border: 1px solid var(--border);
+  border-left: 4px solid #10b981;
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--bg);
+}
+.portal-result p { margin: 0 0 12px; }
+.portal-dato { display: flex; flex-direction: column; margin-bottom: 8px; }
+.portal-dato span { font-size: 11px; color: var(--muted); }
+.portal-dato strong { font-size: 17px; letter-spacing: 1px; }
+.portal-result-icon { position: absolute; right: 12px; bottom: 12px; color: #10b981; }
+.portal-consulta { border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--bg); }
+.portal-consulta-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.portal-consulta-head strong { font-size: 15px; }
+.portal-fila { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+.portal-fila dt { color: var(--muted); }
+.portal-fila dd { margin: 0; text-align: right; }
+.portal-foot { text-align: center; color: #cbd5e1; font-size: 13px; margin: 24px 0 0; }
+.portal-foot a { color: #fff; font-weight: 600; }
+.portal-login-foot { text-align: center; margin: 0; font-size: 13px; color: #cbd5e1; }
+.portal-login-foot a { color: #fff; font-weight: 600; }
+
+@media (max-width: 860px) {
+  .portal-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- Accesibilidad ---------- */
 .skip-link {
   position: absolute;

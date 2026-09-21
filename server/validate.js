@@ -59,6 +59,30 @@ export function validateIncidentCreate(body) {
   return errors;
 }
 
+const CAMPOS_PORTAL = ['nombre', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'sintomas', 'descripcion', 'empresa'];
+
+export function validatePortalReporte(body) {
+  const errors = [];
+
+  for (const key of Object.keys(body)) {
+    if (!CAMPOS_PORTAL.includes(key)) {
+      errors.push(`Campo no permitido: ${key}`);
+    }
+  }
+
+  campoTextoObligatorio(errors, body, 'nombre', 2, 200, 'nombre es obligatorio (mínimo 2 caracteres)');
+  campoTextoOpcional(errors, body, 'telefono', 20);
+  campoTextoOpcional(errors, body, 'direccion', 300);
+  campoTextoOpcional(errors, body, 'barrio', 100);
+  if (!body.tipo_falla_id || !Number.isInteger(Number(body.tipo_falla_id)) || Number(body.tipo_falla_id) < 1) {
+    errors.push('tipo_falla_id es obligatorio y debe ser un número entero positivo');
+  }
+  campoTextoOpcional(errors, body, 'sintomas', 1000);
+  campoTextoOpcional(errors, body, 'descripcion', 2000);
+
+  return errors;
+}
+
 export function validateIncidentUpdate(body) {
   const errors = [];
   const allowed = ['cliente', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'prioridad', 'estado', 'tecnico_id', 'sintomas', 'descripcion'];
