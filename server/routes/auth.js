@@ -53,6 +53,20 @@ function validateRegister(body) {
   return errors;
 }
 
+function validateChangePassword(body) {
+  const errors = [];
+  if (typeof body.password_actual !== 'string' || body.password_actual === '') {
+    errors.push('password_actual es obligatorio');
+  }
+  if (!passwordValida(body.password_nueva)) {
+    errors.push('password_nueva es obligatorio (mínimo 6 caracteres)');
+  }
+  if (body.password_actual && body.password_actual === body.password_nueva) {
+    errors.push('password_nueva debe ser distinta de la actual');
+  }
+  return errors;
+}
+
 authRouter.post('/login', asyncHandler(async (req, res) => {
   const errors = validateLogin(req.body ?? {});
   if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
@@ -95,3 +109,18 @@ authRouter.get('/me', requireAuth, (req, res) => {
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
   res.json({ user });
 });
+
+authRouter.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
+  const errors = validateChangePassword(req.body ?? {});
+  if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
+
+  const user = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+  const correcta = await bcrypt.compare(req.body.password_actual, user.password_hash);
+  if (!correcta) return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+
+  const hash = await bcrypt.hash(req.body.password_nueva, 10);
+  db.prepare('UPDATE usuarios SET password_hash = ? WHERE id = ?').run(hash, user.id);
+  res.json({ ok: true });
+}));

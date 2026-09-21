@@ -35,6 +35,15 @@ test('GET /api/health responde ok', async () => {
   assert.equal(res.body.ok, true);
 });
 
+test('GET /api/health reporta el estado de la base de datos', async () => {
+  const res = await request(app).get('/api/health');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.db, 'ok');
+  assert.equal(typeof res.body.incidencias, 'number');
+  assert.equal(typeof res.body.uptime, 'number');
+});
+
 test('Ruta protegida sin token responde 401', async () => {
   const res = await request(app).get('/api/incidents');
   assert.equal(res.status, 401);
@@ -86,6 +95,57 @@ test('GET /api/auth/me devuelve el usuario autenticado', async () => {
   const res = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${adminToken}`);
   assert.equal(res.status, 200);
   assert.equal(res.body.user.email, 'admin@one.com');
+});
+
+test('POST /api/auth/change-password sin token responde 401', async () => {
+  const res = await request(app)
+    .post('/api/auth/change-password')
+    .send({ password_actual: 'x', password_nueva: 'y12345' });
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/auth/change-password con contraseña actual incorrecta responde 400', async () => {
+  const res = await request(app)
+    .post('/api/auth/change-password')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ password_actual: 'incorrecta', password_nueva: 'claveNueva1' });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/auth/change-password rechaza nueva corta o igual a la actual', async () => {
+  const corta = await request(app)
+    .post('/api/auth/change-password')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ password_actual: 'admin123', password_nueva: '123' });
+  assert.equal(corta.status, 400);
+
+  const igual = await request(app)
+    .post('/api/auth/change-password')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ password_actual: 'admin123', password_nueva: 'admin123' });
+  assert.equal(igual.status, 400);
+});
+
+test('POST /api/auth/change-password cambia la contraseña y permite el nuevo login', async () => {
+  const cambiar = await request(app)
+    .post('/api/auth/change-password')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ password_actual: 'admin123', password_nueva: 'nuevaAdmin123' });
+  assert.equal(cambiar.status, 200);
+  assert.equal(cambiar.body.ok, true);
+
+  const loginViejo = await request(app).post('/api/auth/login').send({ email: 'admin@one.com', password: 'admin123' });
+  assert.equal(loginViejo.status, 401);
+
+  const loginNuevo = await request(app).post('/api/auth/login').send({ email: 'admin@one.com', password: 'nuevaAdmin123' });
+  assert.equal(loginNuevo.status, 200);
+
+  // Restaurar la contraseña original para no afectar al resto de la suite
+  const restaurar = await request(app)
+    .post('/api/auth/change-password')
+    .set('Authorization', `Bearer ${loginNuevo.body.token}`)
+    .send({ password_actual: 'nuevaAdmin123', password_nueva: 'admin123' });
+  assert.equal(restaurar.status, 200);
 });
 
 test('GET /api/checklists devuelve tipos de falla con consultas', async () => {

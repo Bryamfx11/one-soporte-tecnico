@@ -29,6 +29,7 @@ Soporte técnico platform (ONETec) — React 19 + Vite in `client/`, Express 4 i
 - `JWT_SECRET` is **required in production** (`server/auth.js` throws)
 - Rate limits: 300 req/min on `/api`, 10 req/min on `/api/auth` (a live login loop will hit 429). `/api/usuarios` lives outside the auth limiter (under general `/api` 300 cap)
 - `server/auth.js` `requireAuth` selects `activo` from `usuarios`; returns 401 when `activo === 0` (login also rejects deactivated users). `GET/PATCH /api/usuarios` require admin
+- `POST /api/auth/change-password` (auth requerido) verifica `password_actual` contra el hash y actualiza a `password_nueva` (mín. 6 caracteres, distinta de la actual). `GET /api/health` ahora toca la BD: devuelve `ok`, `db: 'ok'`, `incidencias`, `uptime` y `timestamp` (503 si la BD falla)
 - With `NODE_ENV=production` every request is logged as `METHOD URL STATUS DURATION`
 - API tests in `server/test/api.test.js` delete `test/test.db*`, then set `process.env.DB_PATH` and `process.env.JWT_SECRET` **before** a top-level `await import('../app.js')`. Follow this pattern for new API tests — a static import triggers seeding against the real `one.db`
 

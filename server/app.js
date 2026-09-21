@@ -3,7 +3,7 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import './db.js';
+import { db } from './db.js';
 import { requireAuth } from './auth.js';
 import { rateLimit, securityHeaders, corsMiddleware } from './security.js';
 import { sseHandler } from './sse.js';
@@ -46,7 +46,20 @@ app.use('/api/auth', rateLimit({ windowMs: 60000, max: process.env.NODE_ENV === 
 
 app.use(express.json({ limit: '1mb' }));
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', (_req, res) => {
+  try {
+    const total = db.prepare('SELECT COUNT(*) AS c FROM incidencias').get().c;
+    res.json({
+      ok: true,
+      db: 'ok',
+      incidencias: total,
+      uptime: Math.round(process.uptime()),
+      timestamp: Date.now()
+    });
+  } catch {
+    res.status(503).json({ ok: false, db: 'error', error: 'Error consultando la base de datos' });
+  }
+});
 
 // Rutas públicas de autenticación
 app.use('/api/auth', authRouter);

@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS respuestas_diagnostico (
 
 CREATE INDEX IF NOT EXISTS idx_incidentes_tipo ON incidencias(tipo_falla_id);
 CREATE INDEX IF NOT EXISTS idx_incidentes_estado ON incidencias(estado);
+CREATE INDEX IF NOT EXISTS idx_incidentes_tecnico ON incidencias(tecnico_id);
 CREATE INDEX IF NOT EXISTS idx_incidentes_barrio ON incidencias(barrio);
 CREATE INDEX IF NOT EXISTS idx_incidentes_cliente ON incidencias(cliente);
 CREATE INDEX IF NOT EXISTS idx_incidentes_creada ON incidencias(creada_en);
