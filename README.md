@@ -30,6 +30,7 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 | **Diagnóstico estandarizado** | Checklist paso a paso por tipo de falla FTTH/GPON con causa raíz (Ishikawa) |
 | **Base de conocimiento** | Protocolos de diagnóstico y atención consultables para capacitar al equipo |
 | **Indicadores de operación** | Métricas del servicio: resolución, tiempos de atención, carga por técnico y tendencias |
+| **Portal del cliente** | Reporte público de fallas y seguimiento por ticket + clave, sin exponer datos de contacto |
 
 ---
 
@@ -49,7 +50,13 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
   - Referencia esperada por cada paso
   - Registro de causa raíz (Diagrama de Ishikawa)
 - **Base de conocimiento**: Protocolos de diagnóstico consultables para capacitar nuevo personal
+- **Catálogos por admin**: tipos de falla con sus consultas, causas raíz y técnicos se administran desde la aplicación (CRUD completo con protección de borrado)
+- **Portal público del cliente** (`/reportar`, sin autenticación): reporta una falla y recibe `numero_ticket` + clave de seguimiento de 6 dígitos; el seguimiento devuelve solo estado/tipo/prioridad/técnico/fechas/solución (nunca datos de contacto) y cuenta con honeypot anti-spam
+- **Notificaciones por correo**: SMTP configurable desde Ajustes (solo admin) con correo de prueba e historial de envíos; el cliente recibe avisos al registrar un reporte, al cambiar el estado del caso y al finalizarse
+- **Adjuntos de fotos**: fotografías de la visita (1 equipo ONT por caso) subidas y servidas con autenticación, con miniaturas en el detalle y limpieza automática al eliminar el caso
 - **Indicadores de Operación**: Métricas del servicio alineadas a las metas de resolución, tiempos de atención, carga por técnico y tendencia
+- **Comparativo mensual**: reporte mes vs mes (nuevas, resueltas, pendientes, tiempo promedio, por tipo de falla y por técnico) con selector de mes y variaciones porcentuales
+- **Backups automáticos**: snapshot diario `VACUUM INTO` (hora configurable, retención `BACKUP_KEEP`) activo en producción, y estado del último respaldo visible en `/api/health`
 - **Exportación con confirmación**: al descargar reportes CSV (Dashboard e Indicadores) se muestra una notificación de éxito
 - **Estados vacíos**: las gráficas muestran un mensaje claro cuando aún no hay datos, en lugar de un lienzo en blanco
 - **Responsive**: menú lateral colapsable en dispositivos móviles
@@ -88,6 +95,7 @@ npm run dev
 
 - **API:** http://localhost:4000
 - **Cliente:** http://localhost:5173 (proxy `/api` hacia la API)
+- **Portal público:** http://localhost:5173/reportar (sin autenticación)
 
 ### 🔐 Credenciales de demostración (entorno de desarrollo)
 
@@ -108,6 +116,8 @@ npm run dev
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales del administrador que crea el seed |
 | `ALLOWED_ORIGINS` | Orígenes de CORS permitidos (separados por coma) |
 | `TRUST_PROXY` | IP/host del proxy inverso (nginx/caddy). Por defecto `loopback`; ajústalo si la API está detrás de un proxy para que el rate limiting vea IPs reales |
+| `BACKUP_DIR` / `BACKUP_KEEP` | Carpeta y número de copias de respaldo (por defecto `server/backups/` y 14) |
+| `AUTO_BACKUP_HOUR` | Hora (24h) del respaldo automático diario (por defecto 03:00) |
 
 > La primera vez se crea `server/one.db` automáticamente con datos de ejemplo
 > (5 tipos de falla FTTH, 24 incidencias, checklists de diagnóstico, categorías Ishikawa).
@@ -120,6 +130,7 @@ npm run dev
 npm test              # Ejecuta pruebas de API y cliente
 npm run test:server   # API + validaciones (node:test + supertest)
 npm run test:client   # Componentes y utilidades (Vitest + Testing Library)
+npm run test:e2e      # End-to-end con Playwright (Chromium, BD aislada en e2e/.tmp)
 npm run lint          # ESLint (server y cliente)
 ```
 
@@ -129,24 +140,54 @@ CI (GitHub Actions) ejecuta `npm run lint` + `npm test` + `npm run build` en cad
 
 ## 🏭 Producción
 
-La API se empaqueta y despliega con **PM2** (archivo `ecosystem.config.cjs`).
+La API se empaqueta y despliega con **PM2** (archivo `ecosystem.config.cjs`), que además
+sirve el cliente compilado desde `client/dist` cuando existe.
+
+Configure previamente las variables de entorno descritas arriba
+(`JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` y opcionalmente `ALLOWED_ORIGINS`).
+
+### Despliegue en un comando
+
+```bash
+npm run deploy   # git pull --ff-only → backup → install:all → lint+tests → build → pm2 reload onetec
+```
+
+Ejecuta **lint + tests + build** antes de recargar PM2 sin cortes (cero downtime), y crea un
+respaldo de la base de datos antes de tocar nada. `npm run deploy -- --no-check` saltea lint+tests.
+Correr con el repositorio limpio.
+
+### Despliegue manual
 
 ```bash
 npm run build                                    # construye el cliente en client/dist
 pm2 start ecosystem.config.cjs                   # inicia la API en producción (script server/index.js)
 ```
 
-Configure previamente las variables de entorno descritas arriba
-(`JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` y opcionalmente `ALLOWED_ORIGINS`).
+Límites por omisión de la API: **300 peticiones/min** en `/api`, **10 peticiones/min** en `/api/auth`
+y **15 peticiones/min** en `/api/portal`. Con `NODE_ENV=production` la API registra cada petición
+(`método ruta status duración`) en la salida estándar.
 
-Límites por omisión de la API: **300 peticiones/min** en `/api` y **10 peticiones/min** en `/api/auth`.
-Con `NODE_ENV=production` la API registra cada petición (`método ruta status duración`) en la salida estándar.
+### Backups
 
-Antes de actualizar la versión desplegada, respalda la base de datos:
+- **Manual**: `npm run backup` → snapshot `VACUUM INTO` en `server/backups/` (14 copias por defecto, `BACKUP_KEEP`).
+- **Automáticos**: con `NODE_ENV=production` (o `AUTO_BACKUP=1`) se programa un respaldo diario a las `AUTO_BACKUP_HOUR` (03:00), también en `server/backups/`.
+- **Monitoreo**: `GET /api/health` reporta estado de la BD y del último respaldo (`backups: { ultimo, cantidad, guardados }`), ideal para un uptime-checker externo.
+
+### HTTPS con Caddy (recomendado)
+
+El repositorio incluye un `Caddyfile` listo para producción: TLS automático (Let's Encrypt),
+redirección HTTP→HTTPS y reverse proxy a `127.0.0.1:4000`. El bloque usa `flush_interval -1`
+para que el SSE del tablero (`/api/sse/events`) transmita en tiempo real sin buffering.
 
 ```bash
-npm run backup   # snapshot VACUUM INTO en server/backups/ (14 copias por defecto)
+# 1. Apuntar el registro A del dominio al IP del servidor y abrir 80/443
+# 2. Reemplazar <dominio> en el Caddyfile por el dominio real
+# 3. npm run deploy (o el flujo manual de arriba)
+# 4. caddy run
 ```
+
+Con Caddy/nginx en la misma máquina, `TRUST_PROXY=loopback` alcanza para que el rate limiting
+vea las IPs reales; si el proxy vive en otro host, configúralo con su IP/Host.
 
 ---
 
@@ -154,33 +195,44 @@ npm run backup   # snapshot VACUUM INTO en server/backups/ (14 copias por defect
 
 ```
 one-soporte-tecnico/
+├── scripts/
+│   └── deploy.cjs                          # Despliegue en un comando (npm run deploy)
+├── Caddyfile                               # Reverse proxy + TLS automático (SSE friendly)
 ├── server/                              # API Express
-│   ├── index.js                         # Arranque del servidor
+│   ├── index.js                         # Arranque del servidor (+ programación de backups)
 │   ├── app.js                           # Configuración de la app Express
 │   ├── db.js                            # Esquema de base de datos (SQLite)
 │   ├── auth.js                          # JWT y middleware de autenticación
 │   ├── security.js                      # Rate limiting, cabeceras de seguridad y CORS
 │   ├── validate.js                      # Validación de peticiones
 │   ├── seed.js                          # Datos de ejemplo (checklists FTTH, causas)
+│   ├── backup.js                        # Respaldos VACUUM INTO (crear/podar)
+│   ├── monitor.js                       # Backup automático diario + estado (AUTO_BACKUP_HOUR)
+│   ├── notify.js                        # Envío de correos (fire-and-forget, historial)
 │   ├── routes/
 │   │   ├── auth.js                      # Login, registro y perfil
-│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado + auditoría
+│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado + auditoría + adjuntos
 │   │   ├── checklists.js                # Base de conocimiento y causas raíz
-│   │   ├── metrics.js                   # Indicadores del dashboard
+│   │   ├── metrics.js                   # Indicadores + comparativo mensual
+│   │   ├── portal.js                    # Portal público (/reportar, ticket + clave)
+│   │   ├── notifications.js             # Config SMTP, prueba e historial (admin)
 │   │   ├── tecnicos.js
 │   │   └── usuarios.js                  # Listado y activación de cuentas (admin)
-│   └── test/                            # Pruebas de API y validación
+│   └── test/                            # Pruebas de API, validación, backups y correos
 └── client/                              # React (Vite)
     └── src/
         ├── pages/
         │   ├── Login.jsx                # Inicio de sesión
         │   ├── Dashboard.jsx            # KPIs y gráficas
         │   ├── Incidencias.jsx          # Lista de incidencias con filtros
-        │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico guiado
+        │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico + adjuntos
         │   ├── NuevaIncidencia.jsx      # Formulario de creación
-        │   ├── Conocimiento.jsx         # Base de conocimiento
+        │   ├── Conocimiento.jsx         # Base de conocimiento (admin CRUD)
+        │   ├── Tecnicos.jsx             # Gestión de técnicos (admin)
         │   ├── Indicadores.jsx          # Métricas del servicio
-        │   ├── Ajustes.jsx              # Tema y metas de servicio
+        │   ├── Comparativo.jsx          # Reporte mensual mes vs mes
+        │   ├── Reportar.jsx             # Portal público del cliente
+        │   ├── Ajustes.jsx              # Tema, metas de servicio y correos SMTP
         │   ├── Usuarios.jsx             # Gestión de cuentas (solo admin)
         │   └── NotFound.jsx             # Error 404
         ├── components/

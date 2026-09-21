@@ -45,6 +45,7 @@ Soporte técnico platform (ONETec) — React 19 + Vite in `client/`, Express 4 i
 - Session/HTTP client lives in `src/api.js`; token is `localStorage["one_soporte_token"]`. Component tests mock `../api.js`
 - Pages use `React.lazy` + `<Suspense>` for code-splitting (`client/src/App.jsx` keeps `Layout`, `RequireAuth`, `ToastProvider` eager). The smoke test in `ajustes.test.jsx` must use `await screen.findByRole(...)` for the heading to appear
 - UI text, test names, and comments are in **Spanish**; git commit messages are in **English** conventional style (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`)
+- Keep `README.md` in sync: every feature/change must update the relevant sections (Funcionalidades, Producción, Estructura del proyecto, etc.)
 - App uses `<BrowserRouter>` (not a data router), so `useBlocker` is unavailable — unsaved-changes protection is `useDirtyGuard` (`client/src/hooks/useDirtyGuard.js`, `beforeunload` only; does not intercept in-app SPA navigation)
 - `Incidencias.jsx` keeps `estado`/`tipo`/`desde`/`hasta`/`page` in the URL via `useSearchParams` (shareable/back-forward); `q` is debounced (350ms) and synced to the URL
 - `Layout.jsx` fetches `/metrics/dashboard` and shows a pending badge (`nueva + en_diagnostico`) on the Incidencias nav item; the logo (topbar + sidebar) links to `/`; CSV exports show a success toast and charts render empty states when there is no data
