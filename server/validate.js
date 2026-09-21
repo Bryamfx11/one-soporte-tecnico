@@ -183,6 +183,157 @@ export function validateTecnicoUpdate(body) {
   return errors;
 }
 
+export function validateTecnicoCreate(body) {
+  const errors = [];
+
+  if (typeof body.nombre !== 'string' || body.nombre.trim().length < 2) {
+    errors.push('nombre es obligatorio (mínimo 2 caracteres)');
+  } else if (body.nombre.trim().length > 200) {
+    errors.push('nombre no puede exceder 200 caracteres');
+  }
+  if (body.rol !== undefined && body.rol !== null && body.rol !== '') {
+    if (typeof body.rol !== 'string') {
+      errors.push('rol debe ser texto');
+    } else if (body.rol.length > 100) {
+      errors.push('rol no puede exceder 100 caracteres');
+    }
+  }
+
+  return errors;
+}
+
+export function validateTipoFallaCreate(body) {
+  const errors = [];
+
+  if (typeof body.nombre !== 'string' || body.nombre.trim().length < 1) {
+    errors.push('nombre es obligatorio');
+  } else if (body.nombre.trim().length > 100) {
+    errors.push('nombre no puede exceder 100 caracteres');
+  }
+  if (typeof body.descripcion !== 'string' || body.descripcion.trim().length < 1) {
+    errors.push('descripcion es obligatorio');
+  } else if (body.descripcion.trim().length > 300) {
+    errors.push('descripcion no puede exceder 300 caracteres');
+  }
+  campoTextoOpcional(errors, body, 'icono', 30, 'icono debe ser texto');
+
+  return errors;
+}
+
+export function validateTipoFallaUpdate(body) {
+  const errors = [];
+
+  for (const key of Object.keys(body)) {
+    if (!['nombre', 'descripcion', 'icono'].includes(key)) {
+      errors.push(`Campo no permitido: ${key}`);
+    }
+  }
+  campoTextoOpcionalMin(errors, body, 'nombre', 1, 100, 'nombre no puede estar vacío');
+  campoTextoOpcionalMin(errors, body, 'descripcion', 1, 300, 'descripcion no puede estar vacía');
+  campoTextoOpcional(errors, body, 'icono', 30, 'icono debe ser texto');
+
+  return errors;
+}
+
+const TIPOS_RESPUESTA = ['si_no', 'si_no_valor'];
+
+export function validateConsultaCreate(body) {
+  const errors = [];
+
+  if (!body.tipo_falla_id || !Number.isInteger(Number(body.tipo_falla_id)) || Number(body.tipo_falla_id) < 1) {
+    errors.push('tipo_falla_id es obligatorio y debe ser un número entero positivo');
+  }
+  if (body.orden !== undefined && body.orden !== null && body.orden !== '') {
+    const o = Number(body.orden);
+    if (!Number.isInteger(o) || o < 0) {
+      errors.push('orden debe ser un entero mayor o igual a 0');
+    }
+  }
+  for (const c of ['titulo', 'pregunta', 'instruccion']) {
+    if (typeof body[c] !== 'string' || body[c].trim().length < 1) {
+      errors.push(`${c} es obligatorio`);
+    } else if (body[c].trim().length > 500) {
+      errors.push(`${c} no puede exceder 500 caracteres`);
+    }
+  }
+  if (body.tipo_respuesta !== undefined && body.tipo_respuesta !== null && body.tipo_respuesta !== '') {
+    if (!TIPOS_RESPUESTA.includes(body.tipo_respuesta)) {
+      errors.push(`tipo_respuesta debe ser una de: ${TIPOS_RESPUESTA.join(', ')}`);
+    }
+  }
+  campoTextoOpcional(errors, body, 'unidad', 30, 'unidad debe ser texto');
+  campoTextoOpcional(errors, body, 'etiqueta_valor', 100, 'etiqueta_valor debe ser texto');
+  campoTextoOpcional(errors, body, 'referencia', 300, 'referencia debe ser texto');
+
+  return errors;
+}
+
+export function validateConsultaUpdate(body) {
+  const errors = [];
+
+  for (const key of Object.keys(body)) {
+    if (!['titulo', 'pregunta', 'instruccion', 'tipo_respuesta', 'unidad', 'etiqueta_valor', 'referencia', 'orden'].includes(key)) {
+      errors.push(`Campo no permitido: ${key}`);
+    }
+  }
+  if (body.orden !== undefined && body.orden !== null && body.orden !== '') {
+    const o = Number(body.orden);
+    if (!Number.isInteger(o) || o < 0) {
+      errors.push('orden debe ser un entero mayor o igual a 0');
+    }
+  }
+  for (const c of ['titulo', 'pregunta', 'instruccion']) {
+    if (body[c] !== undefined && body[c] !== null) {
+      if (typeof body[c] !== 'string' || body[c].trim().length < 1) {
+        errors.push(`${c} no puede estar vacío`);
+      } else if (body[c].trim().length > 500) {
+        errors.push(`${c} no puede exceder 500 caracteres`);
+      }
+    }
+  }
+  if (body.tipo_respuesta !== undefined && body.tipo_respuesta !== null && body.tipo_respuesta !== '') {
+    if (!TIPOS_RESPUESTA.includes(body.tipo_respuesta)) {
+      errors.push(`tipo_respuesta debe ser una de: ${TIPOS_RESPUESTA.join(', ')}`);
+    }
+  }
+  campoTextoOpcional(errors, body, 'unidad', 30, 'unidad debe ser texto');
+  campoTextoOpcional(errors, body, 'etiqueta_valor', 100, 'etiqueta_valor debe ser texto');
+  campoTextoOpcional(errors, body, 'referencia', 300, 'referencia debe ser texto');
+
+  return errors;
+}
+
+export function validateCausaRaizCreate(body) {
+  const errors = [];
+
+  if (typeof body.categoria !== 'string' || body.categoria.trim().length < 1) {
+    errors.push('categoria es obligatorio');
+  } else if (body.categoria.trim().length > 200) {
+    errors.push('categoria no puede exceder 200 caracteres');
+  }
+  if (typeof body.descripcion !== 'string' || body.descripcion.trim().length < 1) {
+    errors.push('descripcion es obligatorio');
+  } else if (body.descripcion.trim().length > 500) {
+    errors.push('descripcion no puede exceder 500 caracteres');
+  }
+
+  return errors;
+}
+
+export function validateCausaRaizUpdate(body) {
+  const errors = [];
+
+  for (const key of Object.keys(body)) {
+    if (!['categoria', 'descripcion'].includes(key)) {
+      errors.push(`Campo no permitido: ${key}`);
+    }
+  }
+  campoTextoOpcionalMin(errors, body, 'categoria', 1, 200, 'categoria no puede estar vacía');
+  campoTextoOpcionalMin(errors, body, 'descripcion', 1, 500, 'descripcion no puede estar vacía');
+
+  return errors;
+}
+
 export function validateIdParam(id) {
   const num = Number(id);
   if (!id || !Number.isInteger(num) || num < 1) {

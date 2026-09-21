@@ -15,6 +15,7 @@ const Conocimiento = lazy(() => import('./pages/Conocimiento.jsx'));
 const Indicadores = lazy(() => import('./pages/Indicadores.jsx'));
 const Ajustes = lazy(() => import('./pages/Ajustes.jsx'));
 const Usuarios = lazy(() => import('./pages/Usuarios.jsx'));
+const Tecnicos = lazy(() => import('./pages/Tecnicos.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 function Fallback() {
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/indicadores" element={<Indicadores />} />
             <Route path="/ajustes" element={<Ajustes />} />
             <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
+            <Route path="/tecnicos" element={<AdminRoute><Tecnicos /></AdminRoute>} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users } from 'lucide-react';
+import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users, HardHat } from 'lucide-react';
 import { api, getUser, setToken, setUser, useApi } from '../api.js';
 import { useLiveData } from '../sse.js';
 import { useTheme } from '../hooks/useTheme.js';
@@ -85,10 +85,16 @@ export default function Layout() {
             </NavLink>
           ))}
           {user?.rol === 'admin' && (
-            <NavLink to="/usuarios" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => setOpen(false)}>
-              <Users size={18} />
-              <span>Usuarios</span>
-            </NavLink>
+            <>
+              <NavLink to="/tecnicos" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => setOpen(false)}>
+                <HardHat size={18} />
+                <span>Técnicos</span>
+              </NavLink>
+              <NavLink to="/usuarios" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => setOpen(false)}>
+                <Users size={18} />
+                <span>Usuarios</span>
+              </NavLink>
+            </>
           )}
         </nav>
 

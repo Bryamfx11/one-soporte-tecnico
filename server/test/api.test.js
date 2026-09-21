@@ -603,3 +603,252 @@ test('PATCH /api/usuarios/:id rechaza activo no 0/1 y id inválido', async () =>
     .send({ activo: 1 });
   assert.equal(badId.status, 400);
 });
+
+test('POST /api/tecnicos sin token responde 401', async () => {
+  const res = await request(app).post('/api/tecnicos').send({ nombre: 'Nuevo Técnico' });
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/tecnicos con rol técnico responde 403', async () => {
+  const res = await request(app)
+    .post('/api/tecnicos')
+    .set('Authorization', `Bearer ${tecnicoToken}`)
+    .send({ nombre: 'Nuevo Técnico' });
+  assert.equal(res.status, 403);
+});
+
+test('POST /api/tecnicos rechaza nombre corto', async () => {
+  const res = await request(app)
+    .post('/api/tecnicos')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'A' });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/tecnicos crea técnico (admin)', async () => {
+  const res = await request(app)
+    .post('/api/tecnicos')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Nuevo Técnico', rol: 'Técnico de Campo' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.nombre, 'Nuevo Técnico');
+  assert.equal(res.body.rol, 'Técnico de Campo');
+});
+
+test('DELETE /api/tecnicos de un técnico con incidencias responde 409', async () => {
+  const tecnicos = await request(app).get('/api/tecnicos').set('Authorization', `Bearer ${adminToken}`);
+  const objetivo = tecnicos.body[0];
+  await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cliente de Técnico', tipo_falla_id: 1, tecnico_id: objetivo.id });
+
+  const res = await request(app)
+    .delete(`/api/tecnicos/${objetivo.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 409);
+});
+
+test('DELETE /api/tecnicos con rol técnico responde 403', async () => {
+  const nuevo = await request(app)
+    .post('/api/tecnicos')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Técnico a Borrar' });
+  const res = await request(app)
+    .delete(`/api/tecnicos/${nuevo.body.id}`)
+    .set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(res.status, 403);
+});
+
+test('DELETE /api/tecnicos sin incidencias elimina (admin)', async () => {
+  const nuevo = await request(app)
+    .post('/api/tecnicos')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Técnico a Borrar' });
+  const res = await request(app)
+    .delete(`/api/tecnicos/${nuevo.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+});
+
+test('DELETE /api/tecnicos inexistente responde 404', async () => {
+  const res = await request(app)
+    .delete('/api/tecnicos/99999')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 404);
+});
+
+test('POST /api/checklists/tipos sin token responde 401', async () => {
+  const res = await request(app)
+    .post('/api/checklists/tipos')
+    .send({ nombre: 'Nuevo tipo', descripcion: 'Descripción' });
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/checklists/tipos con rol técnico responde 403', async () => {
+  const res = await request(app)
+    .post('/api/checklists/tipos')
+    .set('Authorization', `Bearer ${tecnicoToken}`)
+    .send({ nombre: 'Nuevo tipo', descripcion: 'Descripción' });
+  assert.equal(res.status, 403);
+});
+
+test('POST /api/checklists/tipos crea tipo de falla (admin)', async () => {
+  const res = await request(app)
+    .post('/api/checklists/tipos')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Falla de telefonía', descripcion: 'El teléfono fijo no registra tono', icono: 'phone' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.nombre, 'Falla de telefonía');
+  assert.equal(res.body.icono, 'phone');
+  assert.deepEqual(res.body.consultas, []);
+});
+
+test('POST /api/checklists/tipos valida campos obligatorios', async () => {
+  const res = await request(app)
+    .post('/api/checklists/tipos')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: '' });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/checklists/tipos/:id actualiza el tipo (admin)', async () => {
+  const res = await request(app)
+    .patch('/api/checklists/tipos/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ descripcion: 'Descripción actualizada' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.descripcion, 'Descripción actualizada');
+  assert.equal(res.body.nombre, 'Sin servicio de internet');
+});
+
+test('PATCH /api/checklists/tipos/:id rechaza campo no permitido', async () => {
+  const res = await request(app)
+    .patch('/api/checklists/tipos/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ otro: 'x' });
+  assert.equal(res.status, 400);
+});
+
+test('DELETE /api/checklists/tipos/:id con incidencias responde 409', async () => {
+  const res = await request(app)
+    .delete('/api/checklists/tipos/1')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 409);
+});
+
+test('DELETE /api/checklists/tipos/:id sin incidencias elimina (admin)', async () => {
+  const creado = await request(app)
+    .post('/api/checklists/tipos')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Tipo a Borrar', descripcion: 'Descripción' });
+  const res = await request(app)
+    .delete(`/api/checklists/tipos/${creado.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+});
+
+test('POST /api/checklists/tipos/:tipoId/consultas crea consulta (admin)', async () => {
+  const res = await request(app)
+    .post('/api/checklists/tipos/1/consultas')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ titulo: 'Prueba de tono', pregunta: '¿Hay tono?', instruccion: 'Descolgar y verificar tono', tipo_respuesta: 'si_no', orden: 99 });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.orden, 99);
+  assert.equal(res.body.tipo_falla_id, 1);
+});
+
+test('POST /api/checklists/tipos/:tipoId/consultas en tipo inexistente responde 404', async () => {
+  const res = await request(app)
+    .post('/api/checklists/tipos/99999/consultas')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ titulo: 'X', pregunta: 'Y', instruccion: 'Z' });
+  assert.equal(res.status, 404);
+});
+
+test('POST /api/checklists/tipos/:tipoId/consultas valida campos', async () => {
+  const res = await request(app)
+    .post('/api/checklists/tipos/1/consultas')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ titulo: 'X', pregunta: 'Y' });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/checklists/tipos/:tipoId/consultas con id inválido responde 400', async () => {
+  const res = await request(app)
+    .post('/api/checklists/tipos/abc/consultas')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ titulo: 'X', pregunta: 'Y', instruccion: 'Z' });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/checklists/consultas/:id actualiza la consulta (admin)', async () => {
+  const res = await request(app)
+    .patch('/api/checklists/consultas/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ referencia: 'Verificar tres veces' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.referencia, 'Verificar tres veces');
+});
+
+test('DELETE /api/checklists/consultas/:id con respuestas responde 409', async () => {
+  const res = await request(app)
+    .delete('/api/checklists/consultas/1')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 409);
+});
+
+test('DELETE /api/checklists/consultas/:id sin respuestas elimina (admin)', async () => {
+  const creada = await request(app)
+    .post('/api/checklists/tipos/1/consultas')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ titulo: 'Consulta a Borrar', pregunta: '¿P?', instruccion: 'I' });
+  const res = await request(app)
+    .delete(`/api/checklists/consultas/${creada.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+});
+
+test('POST /api/checklists/causas-raiz crea causa (admin)', async () => {
+  const res = await request(app)
+    .post('/api/checklists/causas-raiz')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ categoria: 'Corte programado', descripcion: 'Mantenimiento de la red anunciado' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.categoria, 'Corte programado');
+});
+
+test('POST /api/checklists/causas-raiz valida campos', async () => {
+  const res = await request(app)
+    .post('/api/checklists/causas-raiz')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ categoria: '' });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/checklists/causas-raiz/:id actualiza la causa (admin)', async () => {
+  const res = await request(app)
+    .patch('/api/checklists/causas-raiz/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ descripcion: 'Descripción nueva de la causa' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.descripcion, 'Descripción nueva de la causa');
+});
+
+test('DELETE /api/checklists/causas-raiz/:id con incidencias responde 409', async () => {
+  const res = await request(app)
+    .delete('/api/checklists/causas-raiz/1')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 409);
+});
+
+test('DELETE /api/checklists/causas-raiz/:id sin incidencias elimina (admin)', async () => {
+  const creada = await request(app)
+    .post('/api/checklists/causas-raiz')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ categoria: 'Causa a Borrar', descripcion: 'Descripción' });
+  const res = await request(app)
+    .delete(`/api/checklists/causas-raiz/${creada.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+});
