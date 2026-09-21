@@ -253,6 +253,25 @@ test('GET /api/metrics/dashboard devuelve métricas', async () => {
   assert.equal(res.body.por_dia.length, 30);
 });
 
+test('GET /api/metrics/comparativo devuelve el resumen mes vs mes', async () => {
+  const res = await request(app).get('/api/metrics/comparativo').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+  assert.match(res.body.mes, /^\d{4}-\d{2}$/);
+  assert.match(res.body.mes_anterior, /^\d{4}-\d{2}$/);
+  assert.equal(typeof res.body.actual.nuevas, 'number');
+  assert.equal(typeof res.body.actual.resueltas, 'number');
+  assert.equal(typeof res.body.actual.pendientes, 'number');
+  assert.ok(Array.isArray(res.body.por_tipo));
+  assert.ok(Array.isArray(res.body.por_tecnico.actual));
+  assert.ok(Array.isArray(res.body.por_tecnico.anterior));
+  assert.ok(res.body.actual.nuevas >= 24);
+});
+
+test('GET /api/metrics/comparativo con mes inválido responde 400', async () => {
+  const res = await request(app).get('/api/metrics/comparativo?mes=2026-13').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 400);
+});
+
 test('GET /api/incidents devuelve lista paginada con total', async () => {
   const res = await request(app).get('/api/incidents?limit=5').set('Authorization', `Bearer ${adminToken}`);
   assert.equal(res.status, 200);

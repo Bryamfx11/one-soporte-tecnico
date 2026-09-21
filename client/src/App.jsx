@@ -13,6 +13,7 @@ const IncidenciaDetail = lazy(() => import('./pages/IncidenciaDetail.jsx'));
 const NuevaIncidencia = lazy(() => import('./pages/NuevaIncidencia.jsx'));
 const Conocimiento = lazy(() => import('./pages/Conocimiento.jsx'));
 const Indicadores = lazy(() => import('./pages/Indicadores.jsx'));
+const Comparativo = lazy(() => import('./pages/Comparativo.jsx'));
 const Ajustes = lazy(() => import('./pages/Ajustes.jsx'));
 const Usuarios = lazy(() => import('./pages/Usuarios.jsx'));
 const Tecnicos = lazy(() => import('./pages/Tecnicos.jsx'));
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/incidencias/:id" element={<IncidenciaDetail />} />
             <Route path="/conocimiento" element={<Conocimiento />} />
             <Route path="/indicadores" element={<Indicadores />} />
+            <Route path="/comparativo" element={<Comparativo />} />
             <Route path="/ajustes" element={<Ajustes />} />
             <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
             <Route path="/tecnicos" element={<AdminRoute><Tecnicos /></AdminRoute>} />

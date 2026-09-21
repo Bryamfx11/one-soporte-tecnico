@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users, HardHat } from 'lucide-react';
+import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users, HardHat, CalendarRange } from 'lucide-react';
 import { api, getUser, setToken, setUser, useApi } from '../api.js';
 import { useLiveData } from '../sse.js';
 import { useTheme } from '../hooks/useTheme.js';
@@ -10,6 +10,7 @@ const NAV = [
   { to: '/incidencias', label: 'Incidencias', icon: ListTodo },
   { to: '/conocimiento', label: 'Base de conocimiento', icon: BookOpen },
   { to: '/indicadores', label: 'Indicadores', icon: BarChart3 },
+  { to: '/comparativo', label: 'Comparativo', icon: CalendarRange },
   { to: '/ajustes', label: 'Ajustes', icon: Settings }
 ];
 

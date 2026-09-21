@@ -17,6 +17,98 @@ metricsRouter.get('/pendientes', (_req, res) => {
   res.json({ pendientes: r.c });
 });
 
+metricsRouter.get('/comparativo', (req, res) => {
+  const ahoraLocal = new Date(Date.now() + CO_OFFSET_MS);
+  const mesActual = req.query.mes
+    ? String(req.query.mes)
+    : `${ahoraLocal.getUTCFullYear()}-${String(ahoraLocal.getUTCMonth() + 1).padStart(2, '0')}`;
+
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mesActual)) {
+    return res.status(400).json({ error: 'mes inválido (formato YYYY-MM)' });
+  }
+
+  const [anio, mes] = mesActual.split('-').map(Number);
+  const inicio = Date.UTC(anio, mes - 1, 1) - CO_OFFSET_MS;
+  const fin = Date.UTC(anio, mes, 1) - CO_OFFSET_MS;
+
+  const prev = new Date(Date.UTC(anio, mes - 2, 1));
+  const inicioAnterior = Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth(), 1) - CO_OFFSET_MS;
+
+  function resumen(inicioMs, finMs) {
+    const nuevas = db.prepare(
+      'SELECT COUNT(*) AS c FROM incidencias WHERE creada_en >= ? AND creada_en < ?'
+    ).get(inicioMs, finMs).c;
+    const resueltas = db.prepare(
+      'SELECT COUNT(*) AS c FROM incidencias WHERE resuelta_en >= ? AND resuelta_en < ?'
+    ).get(inicioMs, finMs).c;
+    // Creadas en el mes que siguen abiertas hoy
+    const pendientes = db.prepare(
+      "SELECT COUNT(*) AS c FROM incidencias WHERE estado IN ('nueva', 'en_diagnostico') AND creada_en >= ? AND creada_en < ?"
+    ).get(inicioMs, finMs).c;
+    const tPromedio = db.prepare(
+      'SELECT AVG(resuelta_en - creada_en) AS ms FROM incidencias WHERE resuelta_en >= ? AND resuelta_en < ?'
+    ).get(inicioMs, finMs).ms;
+    return { nuevas, resueltas, pendientes, tiempo_promedio_ms: tPromedio };
+  }
+
+  const actual = resumen(inicio, fin);
+  const anterior = resumen(inicioAnterior, inicio);
+
+  function nuevasPorTipo(inicioMs, finMs) {
+    return db.prepare(`
+      SELECT t.nombre, COUNT(*) AS c
+      FROM incidencias i JOIN tipos_falla t ON t.id = i.tipo_falla_id
+      WHERE i.creada_en >= ? AND i.creada_en < ?
+      GROUP BY i.tipo_falla_id ORDER BY c DESC
+    `).all(inicioMs, finMs);
+  }
+
+  const tiposActual = nuevasPorTipo(inicio, fin);
+  const tiposAnterior = nuevasPorTipo(inicioAnterior, inicio);
+  const mapAnterior = Object.fromEntries(tiposAnterior.map((t) => [t.nombre, t.c]));
+  const porTipo = tiposActual.map((t) => ({ nombre: t.nombre, actual: t.c, anterior: mapAnterior[t.nombre] ?? 0 }));
+  for (const t of tiposAnterior) {
+    if (!porTipo.some((x) => x.nombre === t.nombre)) {
+      porTipo.push({ nombre: t.nombre, actual: 0, anterior: t.c });
+    }
+  }
+
+  const porTecnicoActual = db.prepare(`
+    SELECT tec.nombre,
+      COUNT(i.id) AS total,
+      SUM(CASE WHEN i.resuelta_en >= ? AND i.resuelta_en < ? THEN 1 ELSE 0 END) AS resueltas
+    FROM incidencias i JOIN tecnicos tec ON tec.id = i.tecnico_id
+    WHERE i.tecnico_id IS NOT NULL AND i.creada_en >= ? AND i.creada_en < ?
+    GROUP BY i.tecnico_id ORDER BY total DESC
+  `).all(inicio, fin, inicio, fin);
+
+  const porTecnicoAnterior = db.prepare(`
+    SELECT tec.nombre,
+      COUNT(i.id) AS total,
+      SUM(CASE WHEN i.resuelta_en >= ? AND i.resuelta_en < ? THEN 1 ELSE 0 END) AS resueltas
+    FROM incidencias i JOIN tecnicos tec ON tec.id = i.tecnico_id
+    WHERE i.tecnico_id IS NOT NULL AND i.creada_en >= ? AND i.creada_en < ?
+    GROUP BY i.tecnico_id ORDER BY total DESC
+  `).all(inicioAnterior, inicio, inicioAnterior, inicio);
+
+  const causas = db.prepare(`
+    SELECT c.categoria, COUNT(*) AS c
+    FROM incidencias i JOIN causas_raiz c ON c.id = i.causa_raiz_id
+    WHERE i.creada_en >= ? AND i.creada_en < ?
+    GROUP BY c.id ORDER BY c DESC LIMIT 6
+  `).all(inicio, fin);
+
+  res.json({
+    mes: mesActual,
+    mes_anterior: `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}`,
+    actual,
+    anterior,
+    por_tipo: porTipo,
+    por_tecnico: { actual: porTecnicoActual, anterior: porTecnicoAnterior },
+    causas
+  });
+});
+
 metricsRouter.get('/dashboard', (req, res) => {
   const total = db.prepare('SELECT COUNT(*) AS c FROM incidencias').get().c;
 
