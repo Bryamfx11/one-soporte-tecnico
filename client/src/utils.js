@@ -39,6 +39,12 @@ export function fmtTiempo(ms) {
   return `${(horas / 24).toFixed(1)} días`;
 }
 
+export function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function pctResolucion(total, resueltas) {
   return total ? Math.round((resueltas / total) * 100) : 0;
 }

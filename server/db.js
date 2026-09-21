@@ -126,6 +126,18 @@ CREATE TABLE IF NOT EXISTS notificaciones (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notif_inc ON notificaciones(incidencia_id);
+
+CREATE TABLE IF NOT EXISTS adjuntos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  incidencia_id INTEGER NOT NULL REFERENCES incidencias(id) ON DELETE CASCADE,
+  nombre TEXT NOT NULL,
+  tipo TEXT NOT NULL DEFAULT 'application/octet-stream',
+  tamano INTEGER NOT NULL,
+  ruta TEXT NOT NULL,
+  creada_en INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_adjuntos_inc ON adjuntos(incidencia_id);
 `);
 
 const usuarioCols = db.prepare("SELECT name FROM pragma_table_info('usuarios')").all().map((c) => c.name);

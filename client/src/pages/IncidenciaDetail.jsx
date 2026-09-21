@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  User, MapPin, Phone, Mail, Play, Save, X,
-  ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2
+  User, MapPin, Phone, Mail, Play, Save, X, Image,
+  ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2, Upload
 } from 'lucide-react';
 import { api, apiGetEstatico, getUser, useApi } from '../api.js';
+import { getToken } from '../api.js';
 import { Badge, ConfirmDialog, Modal, Skeleton, SkeletonText } from '../components/ui.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { useDirtyGuard } from '../hooks/useDirtyGuard.js';
-import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiempo } from '../utils.js';
+import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiempo, fmtBytes } from '../utils.js';
+
+const MIMES_IMAGEN = ['image/jpeg', 'image/png', 'image/webp'];
+const TAMANO_MAX_ADJUNTO = 5 * 1024 * 1024;
 
 export default function IncidenciaDetail() {
   const { id } = useParams();
@@ -32,6 +36,8 @@ export default function IncidenciaDetail() {
   const [deleting, setDeleting] = useState(false);
   const [emailEdit, setEmailEdit] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useDirtyGuard(wizardOpen);
 
@@ -104,6 +110,47 @@ export default function IncidenciaDetail() {
       showToast('error', err.message);
       setDeleting(false);
       setConfirmingDelete(false);
+    }
+  }
+
+  async function subirAdjunto(e) {
+    const archivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!archivo) return;
+    if (!MIMES_IMAGEN.includes(archivo.type)) {
+      showToast('error', 'Solo se permiten imágenes (JPG, PNG o WebP).');
+      return;
+    }
+    if (archivo.size > TAMANO_MAX_ADJUNTO) {
+      showToast('error', 'La imagen supera los 5 MB.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+        reader.readAsDataURL(archivo);
+      });
+      await api.post(`/incidents/${inc.id}/adjuntos`, { nombre: archivo.name, tipo: archivo.type, base64 });
+      reload();
+      showToast('success', 'Foto subida correctamente.');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function borrarAdjunto(a) {
+    if (!window.confirm(`¿Eliminar la foto "${a.nombre}"?`)) return;
+    try {
+      await api.del(`/incidents/${inc.id}/adjuntos/${a.id}`);
+      reload();
+      showToast('success', 'Foto eliminada.');
+    } catch (err) {
+      showToast('error', err.message);
     }
   }
 
@@ -183,6 +230,43 @@ export default function IncidenciaDetail() {
       </section>
 
       <section className="card">
+        <div className="adjuntos-head">
+          <h3>Adjuntos · fotos de la visita</h3>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden-input"
+              onChange={subirAdjunto}
+              aria-label="Subir foto"
+            />
+            <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              <Upload size={16} /> {uploading ? 'Subiendo…' : 'Subir foto (ONT)'}
+            </button>
+          </div>
+        </div>
+        {(!inc.adjuntos || inc.adjuntos.length === 0) ? (
+          <p className="soft">Sin fotos adjuntas. Suba una foto del equipo visitado.</p>
+        ) : (
+          <div className="adjuntos-grid">
+            {inc.adjuntos.map((a) => (
+              <div className="adjunto-item" key={a.id}>
+                <AdjuntoImg incId={inc.id} adjunto={a} />
+                <div className="adjunto-meta">
+                  <span className="adjunto-nombre" title={a.nombre}>{a.nombre}</span>
+                  <span className="soft">{fmtBytes(a.tamano)} · {fmtFecha(a.creada_en)}</span>
+                  <button className="btn-icon danger" aria-label={`Eliminar ${a.nombre}`} onClick={() => borrarAdjunto(a)}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
         <h3>Historial de actividad</h3>
         {(!inc.actividad || inc.actividad.length === 0) ? (
           <p className="soft">Sin movimientos registrados.</p>
@@ -252,6 +336,32 @@ export default function IncidenciaDetail() {
       )}
     </div>
   );
+}
+
+function AdjuntoImg({ incId, adjunto }) {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    let objectUrl = null;
+    let activo = true;
+    fetch(`/api/incidents/${incId}/adjuntos/${adjunto.id}`, {
+      headers: { Authorization: `Bearer ${getToken()}` }
+    })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('No autorizado'))))
+      .then((blob) => {
+        if (!activo) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => { if (activo) setSrc(null); });
+    return () => {
+      activo = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [incId, adjunto.id]);
+  if (!src) {
+    return <div className="adjunto-ph"><Image size={28} /> No disponible</div>;
+  }
+  return <img src={src} alt={adjunto.nombre} className="adjunto-img" loading="lazy" />;
 }
 
 function DiagnosticoWizard({ inc, checklist, causas, onClose, onSaved }) {

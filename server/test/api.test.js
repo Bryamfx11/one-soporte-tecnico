@@ -7,14 +7,17 @@ import { rmSync } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEST_DB = path.join(__dirname, 'test.db');
+const TEST_UPLOADS = path.join(__dirname, 'test-uploads');
 
 // Limpiar base de datos de prueba antes de cargar la app
 for (const suffix of ['', '-shm', '-wal', '-journal']) {
   rmSync(TEST_DB + suffix, { force: true });
 }
+rmSync(TEST_UPLOADS, { recursive: true, force: true });
 
 process.env.DB_PATH = TEST_DB;
 process.env.JWT_SECRET = 'test-secret';
+process.env.UPLOADS_DIR = TEST_UPLOADS;
 
 const { default: app } = await import('../app.js');
 
@@ -502,6 +505,124 @@ test('GET /api/incidents/:id incluye historial de actividad', async () => {
   const detalle2 = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
   assert.deepEqual(detalle2.body.actividad.map((a) => a.accion), ['actualizada', 'creada']);
   assert.ok(detalle2.body.actividad[0].detalle.includes('prioridad'));
+});
+
+const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+test('POST /api/incidents/:id/adjuntos sin token responde 401', async () => {
+  const res = await request(app).post('/api/incidents/1/adjuntos').send({ tipo: 'image/png', base64: PNG_BASE64 });
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/incidents/:id/adjuntos con tipo inválido responde 400', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Adjunto Tipo', tipo_falla_id: 1 });
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/adjuntos`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ tipo: 'application/pdf', base64: PNG_BASE64 });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/incidents/:id/adjuntos con base64 vacío responde 400', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Adjunto Vacío', tipo_falla_id: 1 });
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/adjuntos`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ tipo: 'image/png', base64: '' });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/incidents/:id/adjuntos con archivo mayor a 5 MB responde 400', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Adjunto Grande', tipo_falla_id: 1 });
+  const base64Grande = 'A'.repeat(7 * 1024 * 1024);
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/adjuntos`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ tipo: 'image/png', base64: base64Grande });
+  assert.equal(res.status, 400);
+});
+
+test('subir, listar y descargar un adjunto', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cliente Adjuntos', tipo_falla_id: 1 });
+  const id = creado.body.id;
+
+  const subida = await request(app)
+    .post(`/api/incidents/${id}/adjuntos`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'inicio.png', tipo: 'image/png', base64: PNG_BASE64 });
+  assert.equal(subida.status, 201);
+  assert.equal(subida.body.nombre, 'inicio.png');
+  assert.equal(subida.body.tipo, 'image/png');
+  assert.ok(subida.body.id >= 1);
+
+  const lista = await request(app).get(`/api/incidents/${id}/adjuntos`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(lista.status, 200);
+  assert.equal(lista.body.length, 1);
+  assert.equal(lista.body[0].id, subida.body.id);
+  assert.equal('ruta' in lista.body[0], false);
+
+  const detalle = await request(app).get(`/api/incidents/${id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(detalle.body.adjuntos.length, 1);
+
+  const archivo = await request(app)
+    .get(`/api/incidents/${id}/adjuntos/${subida.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(archivo.status, 200);
+  assert.match(archivo.headers['content-type'], /^image\/png/);
+  assert.ok(archivo.headers['content-disposition'].includes('inline'));
+
+  const borrado = await request(app)
+    .delete(`/api/incidents/${id}/adjuntos/${subida.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(borrado.status, 200);
+
+  const listaVacia = await request(app).get(`/api/incidents/${id}/adjuntos`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(listaVacia.body.length, 0);
+
+  const reborrado = await request(app)
+    .delete(`/api/incidents/${id}/adjuntos/${subida.body.id}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(reborrado.status, 404);
+});
+
+test('descargar un adjunto inexistente responde 404', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Adjunto 404', tipo_falla_id: 1 });
+  const res = await request(app)
+    .get(`/api/incidents/${creado.body.id}/adjuntos/99999`)
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 404);
+});
+
+test('DELETE /api/incidents/:id elimina también los adjuntos', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Adjunto Delete', tipo_falla_id: 1 });
+  const id = creado.body.id;
+  await request(app)
+    .post(`/api/incidents/${id}/adjuntos`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'a.png', tipo: 'image/png', base64: PNG_BASE64 });
+
+  const res = await request(app).delete(`/api/incidents/${id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+  const detalle = await request(app).get(`/api/incidents/${id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(detalle.status, 404);
 });
 
 test('POST /api/incidents/:id/diagnostico registra actividad', async () => {

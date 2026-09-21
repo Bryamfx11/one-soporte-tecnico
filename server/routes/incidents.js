@@ -1,4 +1,8 @@
 import express from 'express';
+import path from 'node:path';
+import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { db } from '../db.js';
 import {
   validateIncidentCreate, validateIncidentUpdate, validateDiagnostico,
@@ -8,10 +12,19 @@ import { requireAdmin } from '../auth.js';
 import { notifyDataChange } from '../sse.js';
 import { enviarNotificacion } from '../notify.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export const incidentsRouter = express.Router();
 
 const ESTADOS_VALIDOS = ['nueva', 'en_diagnostico', 'resuelta', 'escalada'];
 const CAMPOS_ACTUALIZABLES = ['cliente', 'telefono', 'direccion', 'barrio', 'tipo_falla_id', 'prioridad', 'estado', 'tecnico_id', 'sintomas', 'descripcion', 'email'];
+
+const MIMES_IMAGEN = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const EXT_IMAGEN = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const TAMANO_MAX_ADJUNTO = 5 * 1024 * 1024;
+const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(__dirname, '..', 'uploads');
+
+const SELECT_ADJUNTO = 'SELECT id, nombre, tipo, tamano, creada_en FROM adjuntos';
 
 const INC_SELECT = `
   SELECT i.*, t.nombre AS tipo_falla, t.icono AS tipo_icono,
@@ -187,7 +200,8 @@ incidentsRouter.get('/:id', validateId, (req, res) => {
 
   const respuestas = db.prepare('SELECT * FROM respuestas_diagnostico WHERE incidencia_id = ? ORDER BY registrada_en').all(inc.id);
   const actividad = db.prepare('SELECT * FROM actividad WHERE incidencia_id = ? ORDER BY creada_en DESC').all(inc.id);
-  res.json({ ...mapInc(inc), respuestas, actividad });
+  const adjuntos = db.prepare(`${SELECT_ADJUNTO} WHERE incidencia_id = ? ORDER BY creada_en DESC`).all(inc.id);
+  res.json({ ...mapInc(inc), respuestas, actividad, adjuntos });
 });
 
 incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, res) => {
@@ -312,12 +326,80 @@ incidentsRouter.post('/:id/finalizar', validateId, validationMiddleware(validate
   res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
 });
 
+incidentsRouter.post('/:id/adjuntos', validateId, (req, res) => {
+  const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
+  if (!inc) return;
+
+  const { nombre, tipo, base64 } = req.body ?? {};
+  if (typeof base64 !== 'string' || base64.length === 0) {
+    return res.status(400).json({ error: 'base64 es obligatorio' });
+  }
+  if (typeof tipo !== 'string' || !MIMES_IMAGEN.has(tipo)) {
+    return res.status(400).json({ error: 'tipo debe ser image/jpeg, image/png o image/webp' });
+  }
+
+  let buffer;
+  try {
+    buffer = Buffer.from(base64, 'base64');
+  } catch {
+    return res.status(400).json({ error: 'base64 inválido' });
+  }
+  if (buffer.length === 0) return res.status(400).json({ error: 'archivo vacío' });
+  if (buffer.length > TAMANO_MAX_ADJUNTO) {
+    return res.status(400).json({ error: 'el archivo supera los 5 MB' });
+  }
+
+  const nombreLimpio = String(nombre ?? '').trim().slice(0, 200) || `adjunto.${EXT_IMAGEN[tipo]}`;
+  const carpeta = path.join(UPLOADS_DIR, String(inc.id));
+  fs.mkdirSync(carpeta, { recursive: true });
+  const archivo = `${randomUUID()}.${EXT_IMAGEN[tipo]}`;
+  fs.writeFileSync(path.join(carpeta, archivo), buffer);
+
+  const now = Date.now();
+  const r = db.prepare('INSERT INTO adjuntos (incidencia_id, nombre, tipo, tamano, ruta, creada_en) VALUES (?,?,?,?,?,?)')
+    .run(inc.id, nombreLimpio, tipo, buffer.length, archivo, now);
+  res.status(201).json({ id: Number(r.lastInsertRowid), nombre: nombreLimpio, tipo, tamano: buffer.length, creada_en: now });
+});
+
+incidentsRouter.get('/:id/adjuntos', validateId, (req, res) => {
+  const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
+  if (!inc) return;
+  const adjuntos = db.prepare(`${SELECT_ADJUNTO} WHERE incidencia_id = ? ORDER BY creada_en DESC`).all(inc.id);
+  res.json(adjuntos);
+});
+
+incidentsRouter.get('/:id/adjuntos/:adjuntoId', validateId, (req, res) => {
+  const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
+  if (!inc) return;
+  const a = db.prepare('SELECT * FROM adjuntos WHERE id = ? AND incidencia_id = ?').get(Number(req.params.adjuntoId), inc.id);
+  if (!a) return res.status(404).json({ error: 'Adjunto no encontrado' });
+  const ruta = path.join(UPLOADS_DIR, String(inc.id), a.ruta);
+  if (!fs.existsSync(ruta)) return res.status(404).json({ error: 'Archivo no encontrado' });
+  res.setHeader('Content-Type', a.tipo);
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(a.nombre)}`);
+  res.sendFile(ruta);
+});
+
+incidentsRouter.delete('/:id/adjuntos/:adjuntoId', validateId, (req, res) => {
+  const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
+  if (!inc) return;
+  const a = db.prepare('SELECT * FROM adjuntos WHERE id = ? AND incidencia_id = ?').get(Number(req.params.adjuntoId), inc.id);
+  if (!a) return res.status(404).json({ error: 'Adjunto no encontrado' });
+  db.prepare('DELETE FROM adjuntos WHERE id = ?').run(a.id);
+  fs.rmSync(path.join(UPLOADS_DIR, String(inc.id), a.ruta), { force: true });
+  res.json({ ok: true });
+});
+
 // Solo administradores pueden eliminar incidencias
 incidentsRouter.delete('/:id', validateId, requireAdmin, (req, res) => {
   const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
   if (!inc) return;
+  const archivos = db.prepare('SELECT ruta FROM adjuntos WHERE incidencia_id = ?').all(inc.id);
+  const carpeta = path.join(UPLOADS_DIR, String(inc.id));
   registrarActividad(inc.id, req.user.nombre, 'eliminada', 'Incidencia eliminada');
   db.prepare('DELETE FROM incidencias WHERE id = ?').run(Number(req.params.id));
+  for (const a of archivos) fs.rmSync(path.join(carpeta, a.ruta), { force: true });
+  fs.rmSync(carpeta, { recursive: true, force: true });
   notifyDataChange();
   res.json({ ok: true });
 });
