@@ -1,19 +1,21 @@
 # ONETec en producción — Caddy genera HTTPS automático (Let's Encrypt).
 #
 # Pasos:
-#   1. Apuntar el dominio (registro A) al IP del servidor (38.19.49.200).
-#   2. Correr `npm run build` (client/dist) y `pm2 start` antes de Caddy.
-#   3. `caddy run` (en Windows: `caddy start`/servicio; en Linux: systemd).
+#   1. Apuntar el dominio (registro A) al IP del servidor.
+#   2. Reemplazar <dominio> por el dominio real (p.ej. soporte.onetec.co).
+#      Si el dominio vive en otra máquina, usar su IP en "reverse_proxy".
+#   3. Correr `npm run build` (client/dist) y `pm2 start` antes de Caddy.
+#   4. `caddy run` (en Windows: `caddy start`; en Linux: paquete oficial).
 #
 # HTTP -> HTTPS se redirige automáticamente. Firewall: abrir 80 y 443.
 
-one.tec.com.co {
-	# Compresión de textos para el cliente y la API
-	encode zstd gzip
+<dominio> {
+    # Compresión de textos para el cliente y la API
+    encode zstd gzip
 
-	# Todo el tráfico al servidor Node (Express) en 127.0.0.1:4000
-	reverse_proxy 127.0.0.1:4000 {
-		# Requerido para el SSE del tablero (/api/sse/events): sin buffering
-		flush_interval -1
-	}
+    # Todo el tráfico al servidor Node (Express) en 127.0.0.1:4000
+    reverse_proxy 127.0.0.1:4000 {
+        # Requerido para el SSE del tablero (/api/sse/events): sin buffering
+        flush_interval -1
+    }
 }
