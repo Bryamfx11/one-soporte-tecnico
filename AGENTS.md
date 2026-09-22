@@ -20,7 +20,7 @@ Soporte técnico platform (ONETec) — React 19 + Vite in `client/`, Express 4 i
 
 ## Server
 
-- Entrypoints: `server/app.js` is the Express app (what tests import); `server/index.js` does `listen()` + graceful shutdown. It loads `server/.env` via `dotenv` (import at top of `app.js`); copy `server/.env.example` to persist `JWT_SECRET` in dev
+- Entrypoints: `server/app.js` is the Express app (what tests import); `server/index.js` does `listen()` + graceful shutdown. It loads `server/.env` via `server/env.js` (`dotenv.config({ path: server/.env })`, imported first in `app.js` so env is set before other modules) — that works regardless of the working directory (dev runs from `server/`, pm2 from the repo root). Copy `server/.env.example` to persist `JWT_SECRET` in dev/prod
 - `app.js` sets `trust proxy` from `TRUST_PROXY` (default `loopback`) — set it to the real proxy IP/Host when behind nginx/caddy so the rate limiter sees client IPs
 - `/api/sse/events` (SSE, `requireAuth`) pushes `{"type":"update"}` whenever incidents/técnicos change; client subscribes via `useLiveData(reload, { onChange })` in `client/src/sse.js` (Dashboard + Indicadores + `Layout`, no polling). `onChange` fires after each `update` (used to show "Actualizado HH:MM")
 - `GET /api/incidents` accepts optional `desde`/`hasta` (`YYYY-MM-DD`); `hasta` is **inclusive** (`creada_en < hasta + 1 day`). Invalid format → 400 (helpers `parseFechaLocal`/`idValido` in `server/routes/incidents.js`)

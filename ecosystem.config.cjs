@@ -5,17 +5,15 @@ module.exports = {
       script: 'server/index.js',
       cwd: __dirname,
       node_args: '--max-old-space-size=256',
-      env: {
+env: {
         NODE_ENV: 'production',
         PORT: process.env.PORT || 4000,
-        JWT_SECRET: process.env.JWT_SECRET || '',
-        ADMIN_EMAIL: process.env.ADMIN_EMAIL || '',
-        ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',
+        // JWT_SECRET, ADMIN_EMAIL y ADMIN_PASSWORD se cargan de server/.env (server/env.js)
         // Incluir el origen https del dominio para peticiones directas desde el navegador
         ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4000',
-        // Caddy/nginx en la misma máquina: loopback es suficiente para ver IPs reales
+        // Caddy/nginx en la misma mǭquina: loopback es suficiente para ver IPs reales
         TRUST_PROXY: process.env.TRUST_PROXY || 'loopback',
-        // Backup automático diario (hora en 24h, zona del servidor). NODE_ENV=production ya lo activa.
+        // Backup automǭtico diario (hora en 24h, zona del servidor). NODE_ENV=production ya lo activa.
         AUTO_BACKUP_HOUR: process.env.AUTO_BACKUP_HOUR || '3'
       },
       max_memory_restart: '200M',
