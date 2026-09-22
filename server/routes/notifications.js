@@ -12,9 +12,9 @@ notificationsRouter.get('/config', (_req, res) => {
 });
 
 notificationsRouter.put('/config', (req, res) => {
-  const errors = validarConfigSmtp(req.body);
+  const errors = validarConfigSmtp(req.body ?? {});
   if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
-  guardarConfigSmtp(req.body);
+  guardarConfigSmtp(req.body ?? {});
   res.json(leerConfigSmtp());
 });
 
@@ -23,7 +23,9 @@ notificationsRouter.post('/test', async (req, res) => {
     const info = await enviarPrueba(req.user.email);
     res.json({ ok: true, destinatario: req.user.email, messageId: info.messageId ?? null });
   } catch (err) {
-    res.status(502).json({ error: `No se pudo enviar el correo de prueba: ${err.message}` });
+    // No exponer detalles internos del servidor SMTP al cliente
+    console.error('Fallo en correo de prueba:', err.message);
+    res.status(502).json({ error: 'No se pudo enviar el correo de prueba' });
   }
 });
 

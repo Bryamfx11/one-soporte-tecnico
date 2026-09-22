@@ -384,7 +384,9 @@ export function validateIdParam(id) {
 
 export function validationMiddleware(validateFn) {
   return (req, res, next) => {
-    const errors = validateFn(req.body);
+    // Nunca confiar en que el cuerpo vino como JSON: req.body puede ser undefined
+    const body = req.body ?? {};
+    const errors = validateFn(body);
     if (errors.length > 0) {
       return res.status(400).json({ error: 'Error de validación', details: errors });
     }

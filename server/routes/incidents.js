@@ -337,13 +337,14 @@ incidentsRouter.post('/:id/adjuntos', validateId, (req, res) => {
   if (typeof tipo !== 'string' || !MIMES_IMAGEN.has(tipo)) {
     return res.status(400).json({ error: 'tipo debe ser image/jpeg, image/png o image/webp' });
   }
-
-  let buffer;
-  try {
-    buffer = Buffer.from(base64, 'base64');
-  } catch {
+  // Rechazar caracteres no base64 (Buffer.from los ignoraría silenciosamente).
+  // Se usa una clase de caracteres lineal, no una validación canónica completa
+  // (un regex de la forma (?:...)*(...)? desborda la pila en cadenas muy largas).
+  if (/[^A-Za-z0-9+/=]/.test(base64)) {
     return res.status(400).json({ error: 'base64 inválido' });
   }
+
+  const buffer = Buffer.from(base64, 'base64');
   if (buffer.length === 0) return res.status(400).json({ error: 'archivo vacío' });
   if (buffer.length > TAMANO_MAX_ADJUNTO) {
     return res.status(400).json({ error: 'el archivo supera los 5 MB' });

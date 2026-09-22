@@ -86,6 +86,16 @@ function escaparHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// El nombre del remitente viaja en una cabecera de correo: se limpia para evitar
+// inyección de cabeceras (CR/LF/") o nombres absurdamente largos.
+function limpiarNombreRemitente(s) {
+  return String(s ?? '').replace(/[\r\n"]/g, '').trim().slice(0, 100);
+}
+
+export function remitenteDesdeConfig(conf) {
+  return conf.fromName ? `"${limpiarNombreRemitente(conf.fromName)}" <${conf.from}>` : conf.from;
+}
+
 export function construirCorreo({ tipo, inc, clave }) {
   const estado = ESTADOS_LABEL[inc.estado] ?? inc.estado;
   const titulo = tipo === 'registro' ? 'Novedad registrada' : tipo === 'cierre' ? 'Caso finalizado' : `Estado actualizado: ${estado}`;
@@ -143,8 +153,7 @@ export async function enviarNotificacion({ tipo, incidenciaId, destinatario, cla
 
     const correo = inc ? construirCorreo({ tipo, inc, clave }) : { asunto: 'Notificación ONETec', html: '<p>Notificación desde la plataforma ONETec.</p>' };
     asunto = correo.asunto;
-    const from = conf.fromName ? `"${conf.fromName}" <${conf.from}>` : conf.from;
-    await transporte.sendMail(conf, { from, to: destino, subject: correo.asunto, html: correo.html });
+    await transporte.sendMail(conf, { from: remitenteDesdeConfig(conf), to: destino, subject: correo.asunto, html: correo.html });
     registrarNotificacion({ incidenciaId, tipo, destinatario: destino, asunto: correo.asunto, estado: 'enviado' });
   } catch (err) {
     registrarNotificacion({ incidenciaId, tipo, destinatario: destinatario ?? '', asunto, estado: 'error', error: err.message });
@@ -173,9 +182,8 @@ export async function enviarPrueba(destinatario) {
     err.codigo = 'NO_CONFIGURADO';
     throw err;
   }
-  const from = conf.fromName ? `"${conf.fromName}" <${conf.from}>` : conf.from;
   const info = await transporte.sendMail(conf, {
-    from,
+    from: remitenteDesdeConfig(conf),
     to: destinatario,
     subject: 'Prueba de notificaciones ONETec',
     html: '<p style="font-family:Arial,sans-serif;font-size:14px;">Este es un correo de prueba enviado desde la plataforma ONETec.</p><p style="font-family:Arial,sans-serif;font-size:14px;">Si está viendo este mensaje, el envío de notificaciones funciona correctamente.</p>'

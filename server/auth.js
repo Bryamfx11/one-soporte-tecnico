@@ -12,11 +12,13 @@ const SECRET = process.env.JWT_SECRET ?? (() => {
   return s;
 })();
 
+const EMISOR = 'one-soporte';
+
 export function signToken(user) {
   return jwt.sign(
     { id: user.id },
     SECRET,
-    { expiresIn: '8h' }
+    { algorithm: 'HS256', expiresIn: '8h', issuer: EMISOR }
   );
 }
 
@@ -26,7 +28,7 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Autenticación requerida' });
   }
   try {
-    const payload = jwt.verify(header.slice(7), SECRET);
+    const payload = jwt.verify(header.slice(7), SECRET, { algorithms: ['HS256'], issuer: EMISOR });
     const user = db.prepare('SELECT id, nombre, email, rol, activo FROM usuarios WHERE id = ?').get(payload.id);
     if (!user) {
       return res.status(401).json({ error: 'Sesión inválida o expirada' });

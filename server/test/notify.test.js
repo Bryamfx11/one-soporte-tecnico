@@ -101,3 +101,9 @@ test('enviarNotificacion registra error cuando el transporte falla', async () =>
   assert.equal(ultima.estado, 'error');
   assert.match(ultima.error, /fallo simulado/);
 });
+test('el nombre del remitente se limpia para evitar inyección de cabeceras', () => {
+  const conf = { from: 'no-reply@one.com', fromName: 'ONETec\r\nBcc: spam@malo.com"' };
+  const from = notify.remitenteDesdeConfig(conf);
+  assert.equal(from, '"ONETecBcc: spam@malo.com" <no-reply@one.com>');
+  assert.ok(!from.includes('\r') && !from.includes('\n'));
+});

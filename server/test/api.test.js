@@ -1229,3 +1229,71 @@ test('GET /api/notifications/historial devuelve la lista (admin)', async () => {
   assert.equal(res.status, 200);
   assert.ok(Array.isArray(res.body));
 });
+
+// ---- Endurecimiento de seguridad ----
+
+test('JSON malformado responde 400 (no 500) y no expone detalles', async () => {
+  const res = await request(app)
+    .post('/api/auth/login')
+    .set('Content-Type', 'application/json')
+    .send('{"email": "admin@one.com", "password"');
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /JSON/);
+  assert.equal(res.body.code, undefined);
+});
+
+test('Cuerpo sin JSON (sin Content-Type) no rompe la validación y responde 400', async () => {
+  const res = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .type('text/plain')
+    .send('hola');
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error, 'Error de validación');
+});
+
+test('Respuestas de la API no quedan en caché (Cache-Control: no-store)', async () => {
+  const res = await request(app).get('/api/health');
+  assert.equal(res.status, 200);
+  assert.equal(res.headers['cache-control'], 'no-store');
+});
+
+test('Todas las rutas de la API envían cabeceras de seguridad', async () => {
+  const res = await request(app).post('/api/auth/login').send({ email: 'admin@one.com', password: 'admin123' });
+  assert.equal(res.headers['x-content-type-options'], 'nosniff');
+  assert.equal(res.headers['x-frame-options'], 'DENY');
+  assert.equal(res.headers['referrer-policy'], 'no-referrer');
+  assert.equal(res.headers['cross-origin-opener-policy'], 'same-origin');
+  assert.match(res.headers['content-security-policy'], /default-src 'self'/);
+});
+
+test('Token emitido sin issuer del servidor es rechazado (401)', async () => {
+  const jwt = (await import('jsonwebtoken')).default;
+  const falso = jwt.sign({ id: 1 }, 'otro-secreto', { algorithm: 'HS256', expiresIn: '8h' });
+  const res = await request(app).get('/api/incidents').set('Authorization', `Bearer ${falso}`);
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/incidents/:id/adjuntos con base64 con caracteres inválidos responde 400', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Adjunto Basura', tipo_falla_id: 1 });
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/adjuntos`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ tipo: 'image/png', base64: '!!!!not-base64!!!' });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/incidents/:id/adjuntos con payload mayor a 8 MB responde 413', async () => {
+  const creado = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Adjunto Enorme', tipo_falla_id: 1 });
+  const res = await request(app)
+    .post(`/api/incidents/${creado.body.id}/adjuntos`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ tipo: 'image/png', base64: 'A'.repeat(9 * 1024 * 1024) });
+  assert.equal(res.status, 413);
+});

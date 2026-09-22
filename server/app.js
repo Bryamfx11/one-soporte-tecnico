@@ -38,7 +38,9 @@ if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     const inicio = Date.now();
     res.on('finish', () => {
-      console.log(`${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - inicio}ms`);
+      // No registrar datos sensibles en logs: la clave de seguimiento del portal se redacta
+      const url = req.originalUrl.replace(/([?&])clave=[^&]*/gi, '$1clave=***');
+      console.log(`${req.method} ${url} ${res.statusCode} ${Date.now() - inicio}ms`);
     });
     next();
   });
@@ -46,6 +48,12 @@ if (process.env.NODE_ENV === 'production') {
 
 app.use('/api', rateLimit({ windowMs: 60000, max: process.env.NODE_ENV === 'production' ? 300 : 1000 }));
 app.use('/api/auth', rateLimit({ windowMs: 60000, max: process.env.NODE_ENV === 'production' ? 10 : 1000, message: 'Demasiados intentos de autenticación, intente más tarde' }));
+
+// Respuestas JSON de la API no deben quedar en caché (navegadores ni proxies)
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 app.use(express.json({ limit: '8mb' }));
 
@@ -84,14 +92,30 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Ruta de API no enc
 // Servir el build del cliente en producción
 const distPath = path.join(__dirname, '..', 'client', 'dist');
 if (existsSync(distPath)) {
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, { dotfiles: 'ignore', index: true }));
   app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
 }
 
+// Manejador central de errores: clasifica por tipo y nunca expone detalles internos al cliente.
+// Los errores de body-parser (JSON malformado, cuerpo excedido) se distinguen por `err.type`.
+function statusDeError(err) {
+  if (err && err.type === 'entity.parse.failed') return 400;
+  if (err && err.type === 'entity.too.large') return 413;
+  if (err && typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 600) return err.statusCode;
+  if (err && typeof err.status === 'number' && err.status >= 400 && err.status < 600) return err.status;
+  return 500;
+}
+
 // eslint-disable-next-line no-unused-vars
-app.use((err, _req, res, _next) => {
-  console.error('Error no controlado:', err);
-  res.status(500).json({ error: 'Error interno del servidor' });
+app.use((err, req, res, _next) => {
+  const status = statusDeError(err);
+  const msg =
+    err && err.type === 'entity.parse.failed' ? 'JSON inválido o malformado' :
+    err && err.type === 'entity.too.large' ? 'La petición excede el tamaño máximo permitido' :
+    status >= 500 ? 'Error interno del servidor' :
+    'Petición inválida';
+  console.error(`[error] ${req.method} ${req.originalUrl}:`, err);
+  res.status(status).json({ error: msg, code: status >= 500 ? 'ERROR_INTERNO' : undefined });
 });
 
 export default app;
