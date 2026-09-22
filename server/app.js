@@ -92,7 +92,7 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Ruta de API no enc
 // Servir el build del cliente en producción
 const distPath = path.join(__dirname, '..', 'client', 'dist');
 if (existsSync(distPath)) {
-  app.use(express.static(distPath, { dotfiles: 'ignore', index: true }));
+  app.use(express.static(distPath, { dotfiles: 'ignore', index: 'index.html' }));
   app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
 }
 
