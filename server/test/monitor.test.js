@@ -16,7 +16,7 @@ process.env.NODE_ENV = 'test';
 
 const { db } = await import('../db.js');
 const { guardarConfigSmtp, transporte } = await import('../notify.js');
-const { enviarAlerta } = await import('../monitor.js');
+const { enviarAlerta, enviarResumenDiario } = await import('../monitor.js');
 
 function configurar(extra = {}) {
   guardarConfigSmtp({
@@ -54,4 +54,27 @@ test('enviarAlerta con SMTP desactivado no lanza', async () => {
   db.prepare("UPDATE config SET valor = '0' WHERE clave = 'notif_habilitada'").run();
   const ok = await enviarAlerta({ asunto: 'x', cuerpo: 'y' });
   assert.equal(ok, false);
+});
+
+test('enviarResumenDiario arma el cuerpo con las cifras de hoy', async () => {
+  configurar({ alertaEmail: 'resumen@one.com' });
+  let mail = null;
+  transporte.sendMail = async (_conf, m) => { mail = m; return {}; };
+  const ok = await enviarResumenDiario();
+  assert.equal(ok, true);
+  assert.equal(mail.to, 'resumen@one.com');
+  assert.equal(mail.subject, '[ONETec] Resumen operativo diario');
+  assert.match(mail.html, /Fecha: /);
+  assert.match(mail.html, /pendientes \(nueva \+ en diagnosis\)|Incidencias pendientes/);
+  assert.match(mail.html, /backup/);
+});
+
+test('enviarResumenDiario con SMTP desactivado no envía ni lanza', async () => {
+  configurar({ alertaEmail: 'resumen@one.com' });
+  db.prepare("UPDATE config SET valor = '0' WHERE clave = 'notif_habilitada'").run();
+  let llamadas = 0;
+  transporte.sendMail = async () => { llamadas += 1; return {}; };
+  const ok = await enviarResumenDiario();
+  assert.equal(ok, false);
+  assert.equal(llamadas, 0);
 });

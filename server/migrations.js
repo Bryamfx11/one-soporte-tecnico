@@ -62,6 +62,33 @@ export const MIGRATIONS = [
       `);
       db.exec('PRAGMA foreign_keys = ON;');
     }
+  },
+  {
+    version: 5,
+    nombre: 'usuarios.twofa_secret',
+    // Secreto TOTP para 2FA de administradores (NULL = 2FA desactivada).
+    aplicar: (db) => {
+      if (!columnaExiste(db, 'usuarios', 'twofa_secret')) {
+        db.exec('ALTER TABLE usuarios ADD COLUMN twofa_secret TEXT DEFAULT NULL');
+      }
+    }
+  },
+  {
+    version: 6,
+    nombre: 'notas_internas',
+    aplicar: (db) => {
+      if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='notas'").get()) return;
+      db.exec(`
+        CREATE TABLE notas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          incidencia_id INTEGER NOT NULL REFERENCES incidencias(id) ON DELETE CASCADE,
+          usuario TEXT NOT NULL,
+          texto TEXT NOT NULL,
+          creada_en INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_notas_inc ON notas(incidencia_id);
+      `);
+    }
   }
 ];
 

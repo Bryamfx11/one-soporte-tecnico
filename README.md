@@ -36,7 +36,7 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 
 ## ✨ Funcionalidades
 
-- **Autenticación**: login con JWT, roles (admin/técnico), rutas protegidas y registro exclusivo de administradores; verificación de contraseña con tiempos constantes (evita enumerar qué correos están registrados)
+- **Autenticación**: login con JWT, roles (admin/técnico), rutas protegidas y registro exclusivo de administradores; verificación de contraseña con tiempos constantes (evita enumerar qué correos están registrados). **2FA TOTP** opcional para administradores: QR escaneable, secreto otpauth y activación/desactivación con código desde Ajustes (login en dos pasos)
 - **Seguridad**: secreto JWT aleatorio por arranque cuando no viene del entorno (en desarrollo) y obligatorio en producción, tokens HS256 con issuer verificado, rate limiting por ruta, cabeceras de seguridad (CSP, COOP, CORP, Permissions-Policy, etc.), CORS restringido por orígenes permitidos, contraseñas cifradas con bcrypt, validación estricta de entradas en toda la API, manejador central de errores que nunca filtra detalles internos (JSON malformado → 400, cuerpo gigante → 413), `Cache-Control: no-store` en todas las respuestas JSON, logs de producción que redactan la clave de seguimiento del portal y sanificación de remitentes de correo para evitar inyección de cabeceras
 - **Dashboard en tiempo real**: KPIs de rendimiento, gráficas de tendencia, desempeño por técnico con indicador visual de último refresco (actualizado por SSE, sin polling)
 - **Gestión de Incidencias (PQR)**: CRUD completo, búsqueda, filtros por estado/tipo/barrio y **rango de fechas**, flujo de ciclo de vida; número de ticket con reintento ante colisiones y casos cerrados (resuelta/escalada) que no se reabren por API
@@ -44,7 +44,9 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 - **Aviso de cambios sin guardar**: los formularios (nueva incidencia y wizard de diagnóstico) advierten antes de cerrar o recargar la pestaña
 - **Pendientes a la vista**: badge en el menú con el número de casos sin cerrar (nuevas + en diagnóstico), actualizado en tiempo real por SSE
 - **Auditoría por incidencia**: tabla `actividad` con cada movimiento (creación, edición, diagnóstico, cierre y eliminación) con usuario, acción y detalle
-- **Auditoría global (admin)**: página **Auditoría** con el historial completo de incidencias, cuentas (creación/edición/activación/desactivación) y configuración de notificaciones; nunca registra contraseñas ni datos sensibles
+- **Auditoría global (admin)**: página **Auditoría** con el historial completo de incidencias, cuentas (creación/edición/activación/desactivación) y configuración de notificaciones; **búsqueda por texto, filtro por acción y exportación CSV**; incluye los intentos de inicio de sesión (exitosos y fallidos) y la activación/desactivación de 2FA; nunca registra contraseñas ni datos sensibles
+- **Asignación automática de técnicos**: al crear una incidencia sin técnico, el sistema asigna al técnico con menos casos abiertos (nueva/en diagnóstico) y lo audita (`tecnico_asignado`); el portal público nunca asigna técnico
+- **Notas internas por incidencia**: los técnicos y admins pueden dejar notas de seguimiento visibles solo para el equipo (nunca se exponen en el portal público del cliente), con historial propio y registro en auditoría (`nota_creada`)
 - **Gestión de usuarios (admin)**: creación de cuentas con rol (Administrador/Técnico), edición de nombre/email/rol/reinicio de contraseña y activación/desactivación; protecciones contra auto-desactivación, auto-cambio de rol y desactivación del último admin activo; las cuentas desactivadas no pueden ingresar ni mantener sesión
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
   - Medición de campo (nivel óptico dBm, velocidad Mbps, pérdida de paquetes)
@@ -61,6 +63,7 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 - **Restauración verificada**: `npm run restore -- <backup>` valida la integridad del snapshot antes de aplicarlo y guarda automáticamente un `pre-restore-*` del estado actual
 - **Recuperación de acceso (admin)**: `npm run reset-password -- <email> <contraseña>` restablece la contraseña desde el servidor con registro en auditoría; `/api/health` reporta `admins_activos` para detectar el caso de un único administrador
 - **Alertas operativas**: ante un **fallo o atraso del backup automático** se envía un correo al `alerta_email` configurado (o, si no, a los correos de admins activos) usando el mismo SMTP de las notificaciones
+- **Resumen operativo diario**: cada día a las `RESUMEN_HOUR` (06:00 por defecto) se envía un correo con pendientes, nuevas/resueltas de hoy, estado de backups y admins activos; se omite si el SMTP o los destinatarios no están configurados
 - **Exportación con confirmación**: al descargar reportes CSV (Dashboard e Indicadores) se muestra una notificación de éxito
 - **Estados vacíos**: las gráficas muestran un mensaje claro cuando aún no hay datos, en lugar de un lienzo en blanco
 - **Responsive**: menú lateral colapsable en dispositivos móviles
@@ -123,6 +126,7 @@ npm run dev
 | `BACKUP_DIR` / `BACKUP_KEEP` | Carpeta y número de copias de respaldo (por defecto `server/backups/` y 14) |
 | `BACKUP_EXTERNO_DIR` | Carpeta externa (USB/NAS/red) donde se replica cada snapshot; la poda aplica el mismo `BACKUP_KEEP`. Vacío = sin copia espejo |
 | `AUTO_BACKUP_HOUR` | Hora (24h) del respaldo automático diario (por defecto 03:00) |
+| `RESUMEN_HOUR` | Hora (24h) del envío del resumen operativo diario (por defecto 06:00) |
 
 > Comandos operativos (ver `Producción`): `npm run backup`, `npm run restore -- <archivo.db>`,
 > `npm run reset-password -- <email> <contraseña>`.
@@ -228,41 +232,42 @@ one-soporte-tecnico/
 │   ├── auth.js                          # JWT y middleware de autenticación
 │   ├── security.js                      # Rate limiting, cabeceras de seguridad y CORS
 │   ├── validate.js                      # Validación de peticiones
-│   ├── migrations.js                     # Migraciones versionadas de esquema (v1..v4)
+│   ├── migrations.js                     # Migraciones versionadas de esquema (v1..v6)
 │   ├── seed.js                           # Datos de ejemplo (checklists FTTH, causas)
 │   ├── backup.js                         # Respaldos VACUUM INTO (crear/podar + copia externa)
-│   ├── monitor.js                        # Backup automático diario + estado + alertas (AUTO_BACKUP_HOUR)
+│   ├── monitor.js                        # Backup automático diario + resumen diario + estado + alertas (AUTO_BACKUP_HOUR/RESUMEN_HOUR)
 │   ├── notify.js                         # Envío de correos (fire-and-forget, historial)
 │   ├── audit.js                          # Registro de auditoría global (incidencias + sistema)
 │   ├── restore.js                        # Restauración verificada (npm run restore)
 │   ├── reset-password.js                 # Recuperación de acceso admin (npm run reset-password)
+│   ├── totp.js                           # TOTP (RFC 6238) para 2FA, con node:crypto
 │   ├── routes/
-│   │   ├── auth.js                      # Login, registro y perfil
-│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado + auditoría + adjuntos
+│   │   ├── auth.js                      # Login (2 pasos con 2FA), registro, perfil y endpoints 2FA
+│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado + auditoría + adjuntos + notas internas
 │   │   ├── checklists.js                # Base de conocimiento y causas raíz
 │   │   ├── metrics.js                   # Indicadores + comparativo mensual
 │   │   ├── portal.js                    # Portal público (/reportar, ticket + clave)
 │   │   ├── notifications.js             # Config SMTP, prueba e historial (admin)
-│   │   ├── auditoria.js                 # Historial de auditoría global (admin)
+│   │   ├── auditoria.js                 # Historial de auditoría global (admin; búsqueda, filtro y CSV)
 │   │   ├── tecnicos.js
 │   │   └── usuarios.js                  # Alta, edición, listado y activación de cuentas (admin)
-│   └── test/                            # Pruebas de API, validación, backups, migraciones, restore y correos
+│   └── test/                            # Pruebas de API, validación, backups, migraciones, restore, 2FA y correos
 └── client/                              # React (Vite)
     └── src/
         ├── pages/
-        │   ├── Login.jsx                # Inicio de sesión
+        │   ├── Login.jsx                # Inicio de sesión (+ segundo paso 2FA)
         │   ├── Dashboard.jsx            # KPIs y gráficas
         │   ├── Incidencias.jsx          # Lista de incidencias con filtros
-        │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico + adjuntos
+        │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico + adjuntos + notas internas
         │   ├── NuevaIncidencia.jsx      # Formulario de creación
         │   ├── Conocimiento.jsx         # Base de conocimiento (admin CRUD)
         │   ├── Tecnicos.jsx             # Gestión de técnicos (admin)
         │   ├── Indicadores.jsx          # Métricas del servicio
         │   ├── Comparativo.jsx          # Reporte mensual mes vs mes
         │   ├── Reportar.jsx             # Portal público del cliente
-        │   ├── Ajustes.jsx              # Tema, metas de servicio y correos SMTP
+        │   ├── Ajustes.jsx              # Tema, metas, correos SMTP y 2FA
         │   ├── Usuarios.jsx             # Gestión de cuentas (solo admin)
-        │   ├── Auditoria.jsx            # Historial global de auditoría (solo admin)
+        │   ├── Auditoria.jsx            # Historial global de auditoría con búsqueda y CSV (solo admin)
         │   └── NotFound.jsx             # Error 404
         ├── components/
         │   ├── Layout.jsx               # Sidebar, topbar móvil y navegación

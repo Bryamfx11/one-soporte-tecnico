@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   SlidersHorizontal, Save, RotateCcw, LogOut, User as UserIcon,
-  Sun as SunIcon, Moon as MoonIcon, Mail, Send
+  Sun as SunIcon, Moon as MoonIcon, Mail, Send, ShieldCheck, ShieldOff
 } from 'lucide-react';
 import { api, getUser, setToken, setUser } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
@@ -45,6 +45,11 @@ export default function Ajustes() {
   const [savingNotif, setSavingNotif] = useState(false);
   const [testeando, setTesteando] = useState(false);
 
+  const [twofaActiva, setTwofaActiva] = useState(null);
+  const [twofaPending, setTwofaPending] = useState(null);
+  const [twofaCode, setTwofaCode] = useState('');
+  const [twofaBusy, setTwofaBusy] = useState(false);
+
   async function cargarNotif() {
     try {
       const [cfg, hist] = await Promise.all([api.get('/notifications/config'), api.get('/notifications/historial')]);
@@ -56,8 +61,57 @@ export default function Ajustes() {
   }
 
   useEffect(() => {
-    if (user?.rol === 'admin') cargarNotif();
+    if (user?.rol === 'admin') {
+      cargarNotif();
+      api.get('/auth/2fa')
+        .then((r) => setTwofaActiva(!!r.activa))
+        .catch(() => void 0);
+    }
   }, [user?.rol]);
+
+  async function activar2fa() {
+    setTwofaBusy(true);
+    try {
+      const res = await api.post('/auth/2fa/activate');
+      setTwofaPending(res);
+      setTwofaCode('');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setTwofaBusy(false);
+    }
+  }
+
+  async function confirmar2fa(e) {
+    e.preventDefault();
+    setTwofaBusy(true);
+    try {
+      await api.post('/auth/2fa/confirm', { secret: twofaPending.secret, code: twofaCode });
+      setTwofaActiva(true);
+      setTwofaPending(null);
+      setTwofaCode('');
+      showToast('success', 'Verificación en dos pasos activada. El próximo inicio de sesión pedirá el código.');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setTwofaBusy(false);
+    }
+  }
+
+  async function desactivar2fa(e) {
+    e.preventDefault();
+    setTwofaBusy(true);
+    try {
+      await api.post('/auth/2fa/disable', { code: twofaCode });
+      setTwofaActiva(false);
+      setTwofaCode('');
+      showToast('success', 'Verificación en dos pasos desactivada.');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setTwofaBusy(false);
+    }
+  }
 
   async function saveNotif(e) {
     e.preventDefault();
@@ -180,6 +234,71 @@ export default function Ajustes() {
           <button type="button" className="btn btn-danger" onClick={logout}><LogOut size={16} /> Cerrar sesión</button>
         </div>
       </section>
+
+      {user?.rol === 'admin' && (
+        <section className="card">
+          <h3 className="sesion-sec">
+            <ShieldCheck size={16} /> Verificación en dos pasos (2FA)
+          </h3>
+
+          {twofaActiva === null ? (
+            <p className="soft">Consultando el estado de la 2FA…</p>
+          ) : twofaActiva ? (
+            <div className="field-row">
+              <div>
+                <span className="badge" style={{ color: '#10b981', background: '#10b9811a' }}>Activa en tu cuenta</span>
+                <p className="soft">El inicio de sesión pide ahora un código 6 dígitos de tu app autenticadora.</p>
+              </div>
+              <div className="twofa-disable">
+                <input
+                  value={twofaCode}
+                  onChange={(e) => setTwofaCode(e.target.value.trim())}
+                  placeholder="Código actual"
+                  aria-label="Código para desactivar 2FA"
+                  maxLength={6}
+                  inputMode="numeric"
+                />
+                <button type="button" className="btn btn-danger" onClick={desactivar2fa} disabled={twofaBusy || twofaCode.length !== 6}>
+                  <ShieldOff size={16} /> Desactivar
+                </button>
+              </div>
+            </div>
+          ) : twofaPending ? (
+            <div className="twofa-setup">
+              {twofaPending.qr && <img src={twofaPending.qr} alt="Código QR de 2FA" className="twofa-qr" />}
+              <ol>
+                <li>Escanea el QR con Google Authenticator, Authy o similar (o agrega manualmente el enlace de abajo).</li>
+                <li>Ingresa el código de 6 dígitos que genera la app para confirmar.</li>
+              </ol>
+              <p className="soft twofa-secret">
+                Secreto: <code>{twofaPending.secret}</code>
+                <br /><a href={twofaPending.otpauthUrl} className="soft">Abrir enlace otpauth://</a>
+              </p>
+              <form className="inline-form" onSubmit={confirmar2fa}>
+                <input
+                  value={twofaCode}
+                  onChange={(e) => setTwofaCode(e.target.value.trim())}
+                  placeholder="Código de 6 dígitos"
+                  aria-label="Código para activar 2FA"
+                  maxLength={6}
+                  inputMode="numeric"
+                  autoFocus
+                />
+                <button className="btn btn-primary" disabled={twofaBusy || twofaCode.length !== 6}>
+                  <ShieldCheck size={16} /> {twofaBusy ? 'Activando…' : 'Confirmar y activar'}
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="field-row">
+              <p className="soft">Añade una capa extra de seguridad: cada inicio de sesión pedirá un código de tu app autenticadora.</p>
+              <button type="button" className="btn btn-primary" onClick={activar2fa} disabled={twofaBusy}>
+                <ShieldCheck size={16} /> {twofaBusy ? 'Generando…' : 'Activar 2FA'}
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       {user?.rol === 'admin' && notif && (
         <section className="card">

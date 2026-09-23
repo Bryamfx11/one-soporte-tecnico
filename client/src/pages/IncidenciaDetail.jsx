@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  User, MapPin, Phone, Mail, Play, Save, X, Image,
+  User, MapPin, Phone, Mail, Play, Save, X, Image, StickyNote,
   ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2, Upload
 } from 'lucide-react';
 import { api, apiGetEstatico, getUser, useApi } from '../api.js';
@@ -28,6 +28,11 @@ export default function IncidenciaDetail() {
     [inc?.tipo_falla_id]
   );
 
+  const { data: notas, loading: cargandoNotas, reload: recargarNotas } = useApi(
+    () => (inc ? api.get(`/incidents/${inc.id}/notas`) : Promise.resolve([])),
+    [inc?.id]
+  );
+
   const [wizardOpen, setWizardOpen] = useState(false);
   const [tecnicoSel, setTecnicoSel] = useState('');
   const [savingTec, setSavingTec] = useState(false);
@@ -38,6 +43,8 @@ export default function IncidenciaDetail() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const [notaText, setNotaText] = useState('');
+  const [guardandoNota, setGuardandoNota] = useState(false);
 
   useDirtyGuard(wizardOpen);
 
@@ -154,6 +161,23 @@ export default function IncidenciaDetail() {
     }
   }
 
+  async function guardarNota(e) {
+    e.preventDefault();
+    const texto = notaText.trim();
+    if (!texto) return;
+    setGuardandoNota(true);
+    try {
+      await api.post(`/incidents/${inc.id}/notas`, { texto });
+      setNotaText('');
+      recargarNotas();
+      showToast('success', 'Nota interna guardada.');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setGuardandoNota(false);
+    }
+  }
+
   return (
     <div className="page">
       <header className="page-head">
@@ -264,6 +288,36 @@ export default function IncidenciaDetail() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="card">
+        <div className="adjuntos-head">
+          <h3><StickyNote size={16} /> Notas internas</h3>
+        </div>
+        {(!cargandoNotas && (!notas || notas.length === 0)) ? (
+          <p className="soft">Sin notas internas. Deje una nota de seguimiento para el equipo (no visible al cliente).</p>
+        ) : (
+          <div className="nota-lista">
+            {notas?.map((n) => (
+              <div className="nota-item" key={n.id}>
+                <p className="nota-texto">{n.texto}</p>
+                <span className="soft">{n.usuario} · {fmtFecha(n.creada_en)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <form className="inline-form mt" onSubmit={guardarNota}>
+          <input
+            value={notaText}
+            onChange={(e) => setNotaText(e.target.value)}
+            placeholder="Nota interna del equipo…"
+            aria-label="Nueva nota interna"
+            maxLength={2000}
+          />
+          <button className="btn btn-secondary" disabled={guardandoNota}>
+            <Save size={14} /> {guardandoNota ? '…' : 'Añadir nota'}
+          </button>
+        </form>
       </section>
 
       <section className="card">

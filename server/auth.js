@@ -22,6 +22,22 @@ export function signToken(user) {
   );
 }
 
+// Token del primer paso de 2FA: corto (5 min) y marcado, no da acceso a la API.
+export function signMfaToken(user) {
+  return jwt.sign(
+    { id: user.id, mfa: true },
+    SECRET,
+    { algorithm: 'HS256', expiresIn: '5m', issuer: EMISOR }
+  );
+}
+
+// Devuelve el id del usuario si el token es un token parcial 2FA válido (aún sin code).
+export function mfaTokenToId(token) {
+  const payload = jwt.verify(token, SECRET, { algorithms: ['HS256'], issuer: EMISOR });
+  if (!payload.mfa) return null;
+  return payload.id;
+}
+
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
@@ -29,6 +45,10 @@ export function requireAuth(req, res, next) {
   }
   try {
     const payload = jwt.verify(header.slice(7), SECRET, { algorithms: ['HS256'], issuer: EMISOR });
+    if (payload.mfa) {
+      // Tokens del primer paso (2FA) no dan acceso a la API.
+      return res.status(401).json({ error: 'Complete la verificación en dos pasos' });
+    }
     const user = db.prepare('SELECT id, nombre, email, rol, activo FROM usuarios WHERE id = ?').get(payload.id);
     if (!user) {
       return res.status(401).json({ error: 'Sesión inválida o expirada' });

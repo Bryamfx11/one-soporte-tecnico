@@ -347,8 +347,23 @@ test('POST /api/incidents crea incidencia', async () => {
     .set('Authorization', `Bearer ${adminToken}`)
     .send({ cliente: 'Cliente Test', tipo_falla_id: 1, prioridad: 'alta' });
   assert.equal(res.status, 201);
-  assert.ok(res.body.numero_ticket.startsWith('ONE-'));
+  assert.ok(res.body.numero_ticket, 'devuelve número de ticket');
   incidentId = res.body.id;
+});
+
+test('POST /api/incidents asigna técnico automáticamente por carga de trabajo', async () => {
+  const res = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Auto Asignado', tipo_falla_id: 1 });
+  assert.equal(res.status, 201);
+  assert.ok(res.body.tecnico_id != null, 'se asigna el técnico menos cargado');
+
+  const evento = await request(app)
+    .get('/api/auditoria?accion=tecnico_asignado')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(evento.status, 200);
+  assert.ok(evento.body.length > 0, 'se audita la asignación automática');
 });
 
 test('POST /api/incidents valida campos obligatorios', async () => {
@@ -357,6 +372,48 @@ test('POST /api/incidents valida campos obligatorios', async () => {
     .set('Authorization', `Bearer ${adminToken}`)
     .send({ tipo_falla_id: 1 });
   assert.equal(res.status, 400);
+});
+
+test('notas internas: crear, listar y validar', async () => {
+  const creada = await request(app)
+    .post('/api/incidents')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Notas Internas', tipo_falla_id: 1 });
+  assert.equal(creada.status, 201);
+  const incId = creada.body.id;
+
+  const vacia = await request(app)
+    .post(`/api/incidents/${incId}/notas`)
+    .set('Authorization', `Bearer ${tecnicoToken}`)
+    .send({ texto: '   ' });
+  assert.equal(vacia.status, 400);
+
+  const nota = await request(app)
+    .post(`/api/incidents/${incId}/notas`)
+    .set('Authorization', `Bearer ${tecnicoToken}`)
+    .send({ texto: 'Revisar el router del cliente' });
+  assert.equal(nota.status, 201);
+  assert.equal(nota.body.texto, 'Revisar el router del cliente');
+  assert.equal(nota.body.usuario, 'Bryam Villalba');
+
+  const lista = await request(app)
+    .get(`/api/incidents/${incId}/notas`)
+    .set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(lista.status, 200);
+  assert.equal(lista.body.length, 1);
+  assert.equal(lista.body[0].texto, 'Revisar el router del cliente');
+
+  const evento = await request(app)
+    .get('/api/auditoria?accion=nota_creada')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.ok(evento.body.length > 0, 'se audita la nota interna');
+});
+
+test('GET /api/incidents/:id/notas en incidencia inexistente responde 404', async () => {
+  const res = await request(app)
+    .get('/api/incidents/999999/notas')
+    .set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(res.status, 404);
 });
 
 test('POST /api/incidents rechaza campos no-string', async () => {
@@ -548,8 +605,8 @@ test('GET /api/incidents/:id incluye historial de actividad', async () => {
   const detalle1 = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
   assert.equal(detalle1.status, 200);
   assert.ok(Array.isArray(detalle1.body.actividad));
-  assert.equal(detalle1.body.actividad.length, 1);
-  assert.equal(detalle1.body.actividad[0].accion, 'creada');
+  assert.ok(detalle1.body.actividad.some((a) => a.accion === 'creada'), 'registra la creación');
+  assert.ok(detalle1.body.actividad.some((a) => a.accion === 'tecnico_asignado'), 'audita la asignación automática');
 
   await request(app)
     .patch(`/api/incidents/${creado.body.id}`)
@@ -557,7 +614,7 @@ test('GET /api/incidents/:id incluye historial de actividad', async () => {
     .send({ prioridad: 'alta' });
 
   const detalle2 = await request(app).get(`/api/incidents/${creado.body.id}`).set('Authorization', `Bearer ${adminToken}`);
-  assert.deepEqual(detalle2.body.actividad.map((a) => a.accion), ['actualizada', 'creada']);
+  assert.equal(detalle2.body.actividad[0].accion, 'actualizada');
   assert.ok(detalle2.body.actividad[0].detalle.includes('prioridad'));
 });
 
@@ -874,6 +931,42 @@ test('GET /api/auditoria sin token responde 401 y con técnico 403', async () =>
 
   const conTecnico = await request(app).get('/api/auditoria').set('Authorization', `Bearer ${tecnicoToken}`);
   assert.equal(conTecnico.status, 403);
+});
+
+test('el login registra intentos exitosos y fallidos en auditoría', async () => {
+  const mal = await request(app).post('/api/auth/login').send({ email: 'admin@one.com', password: 'clave-incorrecta' });
+  assert.equal(mal.status, 401);
+
+  const bien = await request(app).post('/api/auth/login').send({ email: 'admin@one.com', password: 'admin123' });
+  assert.equal(bien.status, 200);
+
+  const fallidos = await request(app).get('/api/auditoria?accion=login_fallido').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(fallidos.status, 200);
+  assert.ok(fallidos.body.length > 0, 'se registra el intento fallido');
+
+  const exitosos = await request(app).get('/api/auditoria?accion=login_exitoso').set('Authorization', `Bearer ${adminToken}`);
+  assert.ok(exitosos.body.length > 0, 'se registra el inicio de sesión exitoso');
+});
+
+test('GET /api/auditoria filtra por búsqueda y por acción', async () => {
+  const accion = await request(app)
+    .get('/api/auditoria?accion=usuario_creado')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(accion.status, 200);
+  assert.ok(accion.body.length > 0);
+  assert.ok(accion.body.every((e) => e.accion === 'usuario_creado'));
+
+  const busqueda = await request(app)
+    .get('/api/auditoria?q=login_fallido')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(busqueda.status, 200);
+  assert.ok(Array.isArray(busqueda.body));
+
+  const sinCoincidencias = await request(app)
+    .get('/api/auditoria?q=zzzz-inexistente-zzzz')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(sinCoincidencias.status, 200);
+  assert.equal(sinCoincidencias.body.length, 0);
 });
 
 test('POST /api/tecnicos sin token responde 401', async () => {

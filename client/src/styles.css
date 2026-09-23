@@ -757,6 +757,32 @@ textarea:focus-visible {
   max-width: 55%;
 }
 
+.nota-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nota-item {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--input-bg);
+}
+
+.nota-item .nota-texto {
+  margin: 0 0 4px;
+  white-space: pre-wrap;
+}
+
+.twofa-setup { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.twofa-qr { border: 1px solid var(--border); border-radius: 10px; padding: 6px; background: #fff; }
+.twofa-setup ol { text-align: left; margin: 0; padding-left: 18px; }
+.twofa-secret { word-break: break-all; }
+.twofa-secret code { background: var(--code-bg); padding: 2px 6px; border-radius: 6px; }
+.twofa-disable { display: flex; gap: 8px; }
+
 .btn-icon {
   display: inline-flex;
   align-items: center;

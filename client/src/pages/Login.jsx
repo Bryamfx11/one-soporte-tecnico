@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import { LogIn, ShieldCheck } from 'lucide-react';
 import { api, setToken, setUser } from '../api.js';
 
 export default function Login() {
@@ -8,6 +8,9 @@ export default function Login() {
   const location = useLocation();
   const from = location.state?.from?.pathname ?? '/';
   const [form, setForm] = useState({ email: '', password: '' });
+  const [step, setStep] = useState('credenciales');
+  const [twoFactorToken, setTwoFactorToken] = useState('');
+  const [code, setCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,6 +24,32 @@ export default function Login() {
     setSaving(true);
     try {
       const res = await api.post('/auth/login', form);
+      if (res.twoFactorRequired) {
+        setTwoFactorToken(res.twoFactorToken);
+        setStep('2fa');
+        setCode('');
+        return;
+      }
+      setToken(res.token);
+      setUser(res.user);
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitCode(e) {
+    e.preventDefault();
+    setError('');
+    if (!code.trim()) {
+      setError('Ingrese el código de la aplicación autenticadora.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.post('/auth/2fa/verify', { twoFactorToken, code });
       setToken(res.token);
       setUser(res.user);
       navigate(from, { replace: true });
@@ -28,6 +57,47 @@ export default function Login() {
       setError(err.message);
       setSaving(false);
     }
+  }
+
+  if (step === '2fa') {
+    return (
+      <div className="login-wrap">
+        <form className="card login-card" onSubmit={submitCode}>
+          <div className="login-brand">
+            <img className="login-logo-img" src="/logo-one.png" alt="Logo ONE Telecomunicaciones" />
+            <h1>Verificación en dos pasos</h1>
+            <p>Ingrese el código de 6 dígitos de su aplicación autenticadora.</p>
+          </div>
+
+          <label>
+            <span>Código 2FA</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => { setCode(e.target.value.trim()); if (error) setError(''); }}
+              placeholder="000000"
+              autoFocus
+              maxLength={6}
+            />
+          </label>
+
+          {error && <div className="alert-error" role="alert">{error}</div>}
+
+          <button type="submit" className="btn btn-primary btn-block" disabled={saving}>
+            <ShieldCheck size={16} /> {saving ? 'Verificando…' : 'Verificar y entrar'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            onClick={() => { setStep('credenciales'); setTwoFactorToken(''); setError(''); }}
+          >
+            Volver al inicio de sesión
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (

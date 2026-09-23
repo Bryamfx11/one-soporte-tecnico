@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { db } from '../db.js';
 import {
   validateIncidentCreate, validateIncidentUpdate, validateDiagnostico,
-  validateFinalizar, validateIdParam, validationMiddleware, ESTADOS_TRANSICION
+  validateFinalizar, validateIdParam, validationMiddleware, validateNota, ESTADOS_TRANSICION
 } from '../validate.js';
 import { requireAdmin } from '../auth.js';
 import { notifyDataChange } from '../sse.js';
@@ -95,6 +95,19 @@ function escaparLike(str) {
 function siguienteTicket() {
   db.prepare("INSERT INTO secuencias (nombre, valor) VALUES ('ticket', 1) ON CONFLICT(nombre) DO UPDATE SET valor = valor + 1").run();
   return db.prepare('SELECT valor FROM secuencias WHERE nombre = ?').get('ticket').valor;
+}
+
+// Técnico con menor carga de trabajo = menos incidencias abiertas (nueva/en diagnóstico).
+// Se usa solo en la creación interna; el portal público nunca asigna técnico.
+function sugerirTecnico() {
+  return db.prepare(`
+    SELECT t.id, t.nombre, COUNT(i.id) AS carga
+    FROM tecnicos t
+    LEFT JOIN incidencias i ON i.tecnico_id = t.id AND i.estado IN ('nueva','en_diagnostico')
+    GROUP BY t.id
+    ORDER BY carga ASC, t.id ASC
+    LIMIT 1
+  `).get() ?? null;
 }
 
 function insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion, email }) {
@@ -213,8 +226,14 @@ incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, re
   if (!existeTipoFalla(tipo_falla_id)) return res.status(400).json({ error: 'tipo_falla_id no existe' });
   if (tecnico_id && !existeTecnico(tecnico_id)) return res.status(400).json({ error: 'tecnico_id no existe' });
 
-  const nuevoId = insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id, sintomas, descripcion, email });
+  const autoAsignado = !tecnico_id ? sugerirTecnico() : null;
+  const tecnicoFinal = tecnico_id ?? autoAsignado?.id ?? null;
+
+  const nuevoId = insertarIncidencia({ cliente, telefono, direccion, barrio, tipo_falla_id, prioridad, tecnico_id: tecnicoFinal, sintomas, descripcion, email });
   registrarActividad(nuevoId, req.user.nombre, 'creada', 'Incidencia registrada');
+  if (autoAsignado) {
+    registrarActividad(nuevoId, req.user.nombre, 'tecnico_asignado', `Asignación automática: ${autoAsignado.nombre}`);
+  }
   notifyDataChange();
   res.status(201).json(mapInc(buscarIncidenciaCompleta(nuevoId)));
 });
@@ -389,6 +408,25 @@ incidentsRouter.delete('/:id/adjuntos/:adjuntoId', validateId, (req, res) => {
   db.prepare('DELETE FROM adjuntos WHERE id = ?').run(a.id);
   fs.rmSync(path.join(UPLOADS_DIR, String(inc.id), a.ruta), { force: true });
   res.json({ ok: true });
+});
+
+// Notas internas: visibles solo para el equipo (no se exponen en el portal público).
+incidentsRouter.get('/:id/notas', validateId, (req, res) => {
+  const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
+  if (!inc) return;
+  const notas = db.prepare('SELECT id, usuario, texto, creada_en FROM notas WHERE incidencia_id = ? ORDER BY creada_en DESC, id DESC').all(inc.id);
+  res.json(notas);
+});
+
+incidentsRouter.post('/:id/notas', validateId, validationMiddleware(validateNota), (req, res) => {
+  const inc = incidenciaOr404(res, buscarIncidencia(req.params.id));
+  if (!inc) return;
+  const r = db.prepare('INSERT INTO notas (incidencia_id, usuario, texto, creada_en) VALUES (?, ?, ?, ?)')
+    .run(inc.id, req.user.nombre, req.body.texto.trim(), Date.now());
+  registrarActividad(inc.id, req.user.nombre, 'nota_creada', 'Nota interna');
+  notifyDataChange();
+  const nueva = db.prepare('SELECT id, incidencia_id, usuario, texto, creada_en FROM notas WHERE id = ?').get(Number(r.lastInsertRowid));
+  res.status(201).json(nueva);
 });
 
 // Solo administradores pueden eliminar incidencias

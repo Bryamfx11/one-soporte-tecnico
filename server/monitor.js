@@ -5,8 +5,11 @@ import { leerConfigSmtp, transporte, remitenteDesdeConfig, registrarNotificacion
 import { db } from './db.js';
 
 export const AUTO_BACKUP_HOUR = clampHora(Number(process.env.AUTO_BACKUP_HOUR ?? 3));
+export const RESUMEN_HOUR = clampHora(Number(process.env.RESUMEN_HOUR ?? 6));
 const INTERVALO_MS = 10 * 60 * 1000;
 const ATRASO_MAX_HORAS = 26;
+const CO_OFFSET_MS = -5 * 60 * 60 * 1000; // Bogotá (UTC-5)
+const DIA_MS = 24 * 60 * 60 * 1000;
 
 function clampHora(n) {
   if (Number.isInteger(n) && n >= 0 && n <= 23) return n;
@@ -46,26 +49,76 @@ export async function enviarAlerta({ asunto, cuerpo }) {
   }
 }
 
+// Fecha local de Bogotá en formato YYYY-M-D (para deduplicar avisos por día).
+function claveDia() {
+  const b = new Date(Date.now() + CO_OFFSET_MS);
+  return `${b.getUTCFullYear()}-${b.getUTCMonth() + 1}-${b.getUTCDate()}`;
+}
+
+// Media noche de hoy en Bogotá como epoch (ms).
+function inicioDeHoyBogota() {
+  return Math.floor((Date.now() + CO_OFFSET_MS) / DIA_MS) * DIA_MS - CO_OFFSET_MS;
+}
+
 // Compara la última copia local con el tiempo máximo tolerable y avisa una vez al día.
 let avisoAtrasoDia = '';
 function avisarSiAtrasado() {
   const estado = estadoBackups();
   if (!estado.ultimo) return;
   const horas = (Date.now() - estado.ultimo) / 3600000;
-  const hoy = `${new Date().getFullYear()}-${new Date().getMonth() + 1}-${new Date().getDate()}`;
-  if (horas > ATRASO_MAX_HORAS && avisoAtrasoDia !== hoy) {
-    avisoAtrasoDia = hoy;
+  if (horas > ATRASO_MAX_HORAS && avisoAtrasoDia !== claveDia()) {
+    avisoAtrasoDia = claveDia();
     const texto = `El último backup de la base de datos tiene ${Math.floor(horas)} horas.\nRevise el estado del servidor y la programación diaria (AUTO_BACKUP_HOUR).`;
     void enviarAlerta({ asunto: 'Backup atrasado', cuerpo: texto });
   }
 }
 
+// Resumen operativo diario por correo: pendientes, nuevas/resueltas de hoy, backups y admins.
+// Nunca lanza; no envía (ni registra) si SMTP o destinatarios no están configurados.
+export async function enviarResumenDiario() {
+  try {
+    const conf = leerConfigSmtp();
+    if (!conf.configurado) return false;
+    const destinatarios = destinatariosAlerta(conf);
+    if (destinatarios.length === 0) return false;
+
+    const inicioHoy = inicioDeHoyBogota();
+    const hoy = new Date(Date.now() + CO_OFFSET_MS).toISOString().slice(0, 10);
+    const pendientes = db.prepare("SELECT COUNT(*) AS c FROM incidencias WHERE estado IN ('nueva','en_diagnostico')").get().c;
+    const nuevasHoy = db.prepare('SELECT COUNT(*) AS c FROM incidencias WHERE creada_en >= ?').get(inicioHoy).c;
+    const resueltasHoy = db.prepare('SELECT COUNT(*) AS c FROM incidencias WHERE estado = ? AND resuelta_en >= ?').get('resuelta', inicioHoy).c;
+    const admins = db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE rol = 'admin' AND activo = 1").get().c;
+    const backups = estadoBackups();
+    const ultimoBackup = backups.ultimo
+      ? `${Math.round((Date.now() - backups.ultimo) / 3600000)} h atrás`
+      : 'sin copias';
+
+    const cuerpo = [
+      `Fecha: ${hoy}`,
+      `Incidencias pendientes (nueva + en diagnóstico): ${pendientes}`,
+      `Nuevas hoy: ${nuevasHoy}`,
+      `Resueltas hoy: ${resueltasHoy}`,
+      `Último backup: ${ultimoBackup} (${backups.cantidad} copias locales)`,
+      `Administradores activos: ${admins}`
+    ].join('\n');
+
+    return enviarAlerta({ asunto: 'Resumen operativo diario', cuerpo });
+  } catch {
+    return false;
+  }
+}
+
 export function programarBackupDiario() {
   let diaEjecutado = '';
+  let diaResumen = '';
   const timer = setInterval(() => {
     const ahora = new Date();
-    const hoy = `${ahora.getFullYear()}-${ahora.getMonth() + 1}-${ahora.getDate()}`;
+    const hoy = claveDia();
     avisarSiAtrasado();
+    if (ahora.getHours() === RESUMEN_HOUR && diaResumen !== hoy) {
+      diaResumen = hoy;
+      void enviarResumenDiario();
+    }
     if (ahora.getHours() !== AUTO_BACKUP_HOUR || diaEjecutado === hoy) return;
     try {
       const dest = crearBackup();

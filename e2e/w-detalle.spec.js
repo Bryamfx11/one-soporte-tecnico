@@ -55,7 +55,7 @@ test('el diagnóstico guiado resuelve un caso y registra el historial', async ({
   await expect(page.locator('.result-box')).toContainText('Causa raíz:');
   await expect(page.locator('.result-box')).toContainText('Solución aplicada (resuelta) desde el test E2E.');
   const histActividad = page.locator('.card').filter({ hasText: 'Historial de actividad' });
-  await expect(histActividad.locator('tbody tr')).toHaveCount(3);
+  await expect(histActividad.locator('tbody tr')).toHaveCount(4);
   const histDiagnostico = page.locator('.card').filter({ hasText: 'Historial de diagnóstico' });
   await expect(histDiagnostico.locator('tbody tr')).toHaveCount(7);
   await expect(histDiagnostico).toContainText('OK');

@@ -382,6 +382,16 @@ export function validateIdParam(id) {
   return [];
 }
 
+export function validateNota(body) {
+  const errors = [];
+  if (typeof body.texto !== 'string' || body.texto.trim() === '') {
+    errors.push('texto es obligatorio');
+  } else if (body.texto.trim().length > 2000) {
+    errors.push('texto no puede exceder 2000 caracteres');
+  }
+  return errors;
+}
+
 export function validationMiddleware(validateFn) {
   return (req, res, next) => {
     // Nunca confiar en que el cuerpo vino como JSON: req.body puede ser undefined
