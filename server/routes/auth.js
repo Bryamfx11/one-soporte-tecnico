@@ -50,6 +50,9 @@ function validateRegister(body) {
   if (!passwordValida(body.password)) {
     errors.push('password es obligatorio (mínimo 6 caracteres)');
   }
+  if (body.rol !== undefined && body.rol !== null && !['admin', 'tecnico'].includes(body.rol)) {
+    errors.push('rol debe ser "admin" o "tecnico"');
+  }
   return errors;
 }
 
@@ -97,8 +100,9 @@ authRouter.post('/register', requireAuth, requireAdmin, asyncHandler(async (req,
   if (existe) return res.status(409).json({ error: 'El email ya está registrado' });
 
   const hash = await bcrypt.hash(req.body.password, 10);
+  const rol = req.body.rol === 'admin' ? 'admin' : 'tecnico';
   const r = db.prepare('INSERT INTO usuarios (nombre, email, password_hash, rol, creado_en) VALUES (?, ?, ?, ?, ?)')
-    .run(req.body.nombre.trim(), email, hash, 'tecnico', Date.now());
+    .run(req.body.nombre.trim(), email, hash, rol, Date.now());
 
   const user = db.prepare('SELECT id, nombre, email, rol FROM usuarios WHERE id = ?').get(Number(r.lastInsertRowid));
   res.status(201).json({ user });

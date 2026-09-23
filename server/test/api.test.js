@@ -94,6 +94,39 @@ test('POST /api/auth/register con rol admin crea usuario', async () => {
     .send({ nombre: 'Nuevo Técnico', email: 'nuevo@one.com', password: 'clave123' });
   assert.equal(res.status, 201);
   assert.equal(res.body.user.email, 'nuevo@one.com');
+  assert.equal(res.body.user.rol, 'tecnico');
+});
+
+test('POST /api/auth/register crea usuario con rol admin cuando se indica', async () => {
+  const res = await request(app)
+    .post('/api/auth/register')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Segundo Admin', email: 'admin2@one.com', password: 'clave123', rol: 'admin' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.user.rol, 'admin');
+});
+
+test('POST /api/auth/register rechaza rol inválido', async () => {
+  const res = await request(app)
+    .post('/api/auth/register')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Rol Malo', email: 'rolmalo@one.com', password: 'clave123', rol: 'superadmin' });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/auth/register rechaza email duplicado', async () => {
+  const email = 'duplicado@one.com';
+  const primero = await request(app)
+    .post('/api/auth/register')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Primero', email, password: 'clave123', rol: 'tecnico' });
+  assert.equal(primero.status, 201);
+
+  const repetido = await request(app)
+    .post('/api/auth/register')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Segundo', email, password: 'otraclave456' });
+  assert.equal(repetido.status, 409);
 });
 
 test('GET /api/auth/me devuelve el usuario autenticado', async () => {

@@ -44,7 +44,7 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 - **Aviso de cambios sin guardar**: los formularios (nueva incidencia y wizard de diagnóstico) advierten antes de cerrar o recargar la pestaña
 - **Pendientes a la vista**: badge en el menú con el número de casos sin cerrar (nuevas + en diagnóstico), actualizado en tiempo real por SSE
 - **Auditoría por incidencia**: tabla `actividad` con cada movimiento (creación, edición, diagnóstico, cierre y eliminación) con usuario, acción y detalle
-- **Gestión de usuarios (admin)**: listado y activación/desactivación de cuentas; las cuentas desactivadas no pueden ingresar ni mantener sesión
+- **Gestión de usuarios (admin)**: creación de cuentas con rol (Administrador/Técnico), listado y activación/desactivación; las cuentas desactivadas no pueden ingresar ni mantener sesión
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
   - Medición de campo (nivel óptico dBm, velocidad Mbps, pérdida de paquetes)
   - Referencia esperada por cada paso
@@ -217,7 +217,7 @@ one-soporte-tecnico/
 │   │   ├── portal.js                    # Portal público (/reportar, ticket + clave)
 │   │   ├── notifications.js             # Config SMTP, prueba e historial (admin)
 │   │   ├── tecnicos.js
-│   │   └── usuarios.js                  # Listado y activación de cuentas (admin)
+│   │   └── usuarios.js                  # Alta, listado y activación de cuentas (admin)
 │   └── test/                            # Pruebas de API, validación, backups y correos
 └── client/                              # React (Vite)
     └── src/
