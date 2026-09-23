@@ -73,4 +73,34 @@ describe('Usuarios', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/indique el nombre/i);
     expect(api.post).not.toHaveBeenCalled();
   });
+
+  test('edita un usuario (nombre, email y contraseña) desde el modal', async () => {
+    const reload = vi.fn();
+    api.patch.mockResolvedValue({ id: 2, nombre: 'Bryam G.', email: 'bryam2@one.com', rol: 'tecnico', activo: 1, creado_en: 1700000000000 });
+    renderizarUsuarios(reload);
+
+    fireEvent.click(screen.getByRole('button', { name: /editar bryam/i }));
+    fireEvent.change(screen.getByLabelText(/nombre/i), { target: { value: 'Bryam G.' } });
+    fireEvent.change(screen.getByLabelText(/correo/i), { target: { value: 'bryam2@one.com' } });
+    fireEvent.change(screen.getByLabelText(/nueva contraseña/i), { target: { value: 'nuevaClave1' } });
+    fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+    expect(await screen.findByText('Usuario Bryam G. actualizado.')).toBeInTheDocument();
+    expect(api.patch).toHaveBeenCalledWith('/usuarios/2', {
+      nombre: 'Bryam G.',
+      email: 'bryam2@one.com',
+      rol: 'tecnico',
+      password: 'nuevaClave1'
+    });
+    expect(reload).toHaveBeenCalled();
+  });
+
+  test('muestra el rol deshabilitado al editar la propia cuenta', async () => {
+    renderizarUsuarios();
+
+    fireEvent.click(screen.getByRole('button', { name: /editar administrador/i }));
+    const selRol = screen.getByLabelText(/rol/i);
+    expect(selRol).toBeDisabled();
+    expect(screen.getByText(/el rol no se puede modificar/i)).toBeInTheDocument();
+  });
 });

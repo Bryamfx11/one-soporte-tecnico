@@ -779,6 +779,83 @@ test('PATCH /api/usuarios/:id rechaza activo no 0/1 y id inválido', async () =>
   assert.equal(badId.status, 400);
 });
 
+async function crearUsuarioPrueba(email, rol = 'tecnico') {
+  const res = await request(app)
+    .post('/api/auth/register')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Usr ' + email, email, password: 'clave123', rol });
+  assert.equal(res.status, 201);
+  return res.body.user;
+}
+
+test('PATCH /api/usuarios/:id actualiza nombre, email y rol', async () => {
+  const u = await crearUsuarioPrueba('editar@one.com');
+  const res = await request(app)
+    .patch(`/api/usuarios/${u.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nombre: 'Editado', email: 'editado2@one.com', rol: 'admin' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.nombre, 'Editado');
+  assert.equal(res.body.email, 'editado2@one.com');
+  assert.equal(res.body.rol, 'admin');
+});
+
+test('PATCH /api/usuarios/:id rechaza email duplicado', async () => {
+  const u = await crearUsuarioPrueba('dup-editar@one.com');
+  const res = await request(app)
+    .patch(`/api/usuarios/${u.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ email: 'bryam@one.com' });
+  assert.equal(res.status, 409);
+});
+
+test('PATCH /api/usuarios/:id rechaza rol inválido', async () => {
+  const u = await crearUsuarioPrueba('rol-bad@one.com');
+  const res = await request(app)
+    .patch(`/api/usuarios/${u.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ rol: 'superadmin' });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/usuarios/:id no permite cambiar el rol de la propia cuenta', async () => {
+  const users = await request(app).get('/api/usuarios').set('Authorization', `Bearer ${adminToken}`);
+  const admin = users.body.find((u) => u.email === 'admin@one.com');
+  const res = await request(app)
+    .patch(`/api/usuarios/${admin.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ rol: 'tecnico' });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /api/usuarios/:id restablece la contraseña de otro usuario', async () => {
+  const u = await crearUsuarioPrueba('reset-pass@one.com');
+  const res = await request(app)
+    .patch(`/api/usuarios/${u.id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ password: 'nuevaClave1' });
+  assert.equal(res.status, 200);
+
+  const login = await request(app)
+    .post('/api/auth/login')
+    .send({ email: 'reset-pass@one.com', password: 'nuevaClave1' });
+  assert.equal(login.status, 200);
+});
+
+test('PATCH /api/usuarios/:id rechaza cuerpo vacío o solo campos desconocidos', async () => {
+  const vacio = await request(app)
+    .patch('/api/usuarios/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({});
+  assert.equal(vacio.status, 400);
+
+  const soloDesconocido = await request(app)
+    .patch('/api/usuarios/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ hacker: 'x' });
+  assert.equal(soloDesconocido.status, 400);
+});
+
 test('POST /api/tecnicos sin token responde 401', async () => {
   const res = await request(app).post('/api/tecnicos').send({ nombre: 'Nuevo Técnico' });
   assert.equal(res.status, 401);
