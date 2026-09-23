@@ -9,7 +9,9 @@
     "dev": "node --watch index.js",
     "test": "node --test --test-force-exit test/*.test.js",
     "lint": "eslint .",
-    "backup": "node backup.js"
+    "backup": "node backup.js",
+    "restore": "node restore.js",
+    "reset-password": "node reset-password.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

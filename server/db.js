@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { seedIfEmpty } from './seed.js';
+import { applyMigrations } from './migrations.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -95,7 +96,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_incidentes_ticket ON incidencias(numero_ti
 
 CREATE TABLE IF NOT EXISTS actividad (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  incidencia_id INTEGER NOT NULL REFERENCES incidencias(id) ON DELETE CASCADE,
+  incidencia_id INTEGER REFERENCES incidencias(id) ON DELETE CASCADE,
   usuario TEXT NOT NULL,
   accion TEXT NOT NULL,
   detalle TEXT NOT NULL DEFAULT '',
@@ -140,18 +141,7 @@ CREATE TABLE IF NOT EXISTS adjuntos (
 CREATE INDEX IF NOT EXISTS idx_adjuntos_inc ON adjuntos(incidencia_id);
 `);
 
-const usuarioCols = db.prepare("SELECT name FROM pragma_table_info('usuarios')").all().map((c) => c.name);
-if (!usuarioCols.includes('activo')) {
-  db.exec('ALTER TABLE usuarios ADD COLUMN activo INTEGER NOT NULL DEFAULT 1');
-}
-
-const incidenteCols = db.prepare("SELECT name FROM pragma_table_info('incidencias')").all().map((c) => c.name);
-if (!incidenteCols.includes('clave_seguimiento')) {
-  db.exec('ALTER TABLE incidencias ADD COLUMN clave_seguimiento TEXT DEFAULT NULL');
-}
-if (!incidenteCols.includes('email')) {
-  db.exec("ALTER TABLE incidencias ADD COLUMN email TEXT NOT NULL DEFAULT ''");
-}
+applyMigrations(db);
 
 seedIfEmpty();
 

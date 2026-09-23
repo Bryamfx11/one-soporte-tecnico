@@ -17,6 +17,7 @@ fs.mkdirSync(TEST_DIR, { recursive: true });
 process.env.DB_PATH = TEST_DB;
 process.env.BACKUP_DIR = TEST_BACKUPS;
 process.env.BACKUP_KEEP = '5';
+process.env.BACKUP_EXTERNO_DIR = path.join(TEST_DIR, 'externo');
 
 const { crearBackup, podarBackups, BACKUP_DIR } = await import('../backup.js');
 const { estadoBackups } = await import('../monitor.js');
@@ -62,4 +63,21 @@ test('estadoBackups reporta el último backup y la cantidad', () => {
   assert.equal(estado.cantidad, 5);
   assert.equal(estado.guardados, 5);
   assert.ok(typeof estado.ultimo === 'number' && estado.ultimo > 0);
+});
+
+test('crearBackup replica el snapshot en el directorio externo y lo poda', () => {
+  const externo = path.join(TEST_DIR, 'externo');
+  rmSync(externo, { recursive: true, force: true });
+  fs.mkdirSync(externo, { recursive: true });
+  for (let i = 0; i < 8; i++) fs.writeFileSync(path.join(externo, `one-antiguo-ext-${i}.db`), 'x');
+  crearBackup();
+  const copias = fs.readdirSync(externo).filter((n) => n.endsWith('.db')).sort();
+  assert.equal(copias.length, 5, 'se poda el directorio externo a BACKUP_KEEP');
+  assert.ok(!copias.some((n) => n.includes('antiguo-ext-1')));
+  const snapshotExterno = copias.find((n) => n.startsWith('one-202'));
+  assert.ok(snapshotExterno, 'se conserva el snapshot real, no solo basura');
+  const snap = new DatabaseSync(path.join(externo, snapshotExterno));
+  const valor = snap.prepare('SELECT valor FROM prueba WHERE id = 1').get().valor;
+  snap.close();
+  assert.equal(valor, 'onepet');
 });

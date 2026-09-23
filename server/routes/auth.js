@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../db.js';
 import { requireAuth, requireAdmin, signToken } from '../auth.js';
+import { registrarActividad } from '../audit.js';
 
 export const authRouter = express.Router();
 
@@ -105,6 +106,7 @@ authRouter.post('/register', requireAuth, requireAdmin, asyncHandler(async (req,
     .run(req.body.nombre.trim(), email, hash, rol, Date.now());
 
   const user = db.prepare('SELECT id, nombre, email, rol FROM usuarios WHERE id = ?').get(Number(r.lastInsertRowid));
+  registrarActividad({ usuario: req.user.email, accion: 'usuario_creado', detalle: `${rol}: ${user.nombre} <${user.email}>` });
   res.status(201).json({ user });
 }));
 

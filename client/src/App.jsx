@@ -16,6 +16,7 @@ const Indicadores = lazy(() => import('./pages/Indicadores.jsx'));
 const Comparativo = lazy(() => import('./pages/Comparativo.jsx'));
 const Ajustes = lazy(() => import('./pages/Ajustes.jsx'));
 const Usuarios = lazy(() => import('./pages/Usuarios.jsx'));
+const Auditoria = lazy(() => import('./pages/Auditoria.jsx'));
 const Tecnicos = lazy(() => import('./pages/Tecnicos.jsx'));
 const Reportar = lazy(() => import('./pages/Reportar.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/comparativo" element={<Comparativo />} />
             <Route path="/ajustes" element={<Ajustes />} />
             <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
+            <Route path="/auditoria" element={<AdminRoute><Auditoria /></AdminRoute>} />
             <Route path="/tecnicos" element={<AdminRoute><Tecnicos /></AdminRoute>} />
             <Route path="*" element={<NotFound />} />
           </Route>

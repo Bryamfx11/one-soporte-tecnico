@@ -44,7 +44,8 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 - **Aviso de cambios sin guardar**: los formularios (nueva incidencia y wizard de diagnóstico) advierten antes de cerrar o recargar la pestaña
 - **Pendientes a la vista**: badge en el menú con el número de casos sin cerrar (nuevas + en diagnóstico), actualizado en tiempo real por SSE
 - **Auditoría por incidencia**: tabla `actividad` con cada movimiento (creación, edición, diagnóstico, cierre y eliminación) con usuario, acción y detalle
-- **Gestión de usuarios (admin)**: creación de cuentas con rol (Administrador/Técnico), edición de nombre/email/rol/reinicio de contraseña y activación/desactivación; las cuentas desactivadas no pueden ingresar ni mantener sesión
+- **Auditoría global (admin)**: página **Auditoría** con el historial completo de incidencias, cuentas (creación/edición/activación/desactivación) y configuración de notificaciones; nunca registra contraseñas ni datos sensibles
+- **Gestión de usuarios (admin)**: creación de cuentas con rol (Administrador/Técnico), edición de nombre/email/rol/reinicio de contraseña y activación/desactivación; protecciones contra auto-desactivación, auto-cambio de rol y desactivación del último admin activo; las cuentas desactivadas no pueden ingresar ni mantener sesión
 - **Diagnóstico guiado**: Checklist interactivo paso a paso por tipo de falla (FTTH/GPON), con:
   - Medición de campo (nivel óptico dBm, velocidad Mbps, pérdida de paquetes)
   - Referencia esperada por cada paso
@@ -56,7 +57,10 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 - **Adjuntos de fotos**: fotografías de la visita (1 equipo ONT por caso) subidas y servidas con autenticación, con miniaturas en el detalle y limpieza automática al eliminar el caso
 - **Indicadores de Operación**: Métricas del servicio alineadas a las metas de resolución, tiempos de atención, carga por técnico y tendencia
 - **Comparativo mensual**: reporte mes vs mes (nuevas, resueltas, pendientes, tiempo promedio, por tipo de falla y por técnico) con selector de mes y variaciones porcentuales
-- **Backups automáticos**: snapshot diario `VACUUM INTO` (hora configurable, retención `BACKUP_KEEP`) activo en producción, y estado del último respaldo visible en `/api/health`
+- **Backups automáticos**: snapshot diario `VACUUM INTO` (hora configurable, retención `BACKUP_KEEP`) activo en producción, con **copia espejo opcional en un directorio externo** (`BACKUP_EXTERNO_DIR`) y estado del último respaldo visible en `/api/health`
+- **Restauración verificada**: `npm run restore -- <backup>` valida la integridad del snapshot antes de aplicarlo y guarda automáticamente un `pre-restore-*` del estado actual
+- **Recuperación de acceso (admin)**: `npm run reset-password -- <email> <contraseña>` restablece la contraseña desde el servidor con registro en auditoría; `/api/health` reporta `admins_activos` para detectar el caso de un único administrador
+- **Alertas operativas**: ante un **fallo o atraso del backup automático** se envía un correo al `alerta_email` configurado (o, si no, a los correos de admins activos) usando el mismo SMTP de las notificaciones
 - **Exportación con confirmación**: al descargar reportes CSV (Dashboard e Indicadores) se muestra una notificación de éxito
 - **Estados vacíos**: las gráficas muestran un mensaje claro cuando aún no hay datos, en lugar de un lienzo en blanco
 - **Responsive**: menú lateral colapsable en dispositivos móviles
@@ -117,7 +121,11 @@ npm run dev
 | `ALLOWED_ORIGINS` | Orígenes de CORS permitidos (separados por coma) |
 | `TRUST_PROXY` | IP/host del proxy inverso (nginx/caddy). Por defecto `loopback`; ajústalo si la API está detrás de un proxy para que el rate limiting vea IPs reales |
 | `BACKUP_DIR` / `BACKUP_KEEP` | Carpeta y número de copias de respaldo (por defecto `server/backups/` y 14) |
+| `BACKUP_EXTERNO_DIR` | Carpeta externa (USB/NAS/red) donde se replica cada snapshot; la poda aplica el mismo `BACKUP_KEEP`. Vacío = sin copia espejo |
 | `AUTO_BACKUP_HOUR` | Hora (24h) del respaldo automático diario (por defecto 03:00) |
+
+> Comandos operativos (ver `Producción`): `npm run backup`, `npm run restore -- <archivo.db>`,
+> `npm run reset-password -- <email> <contraseña>`.
 
 > La primera vez se crea `server/one.db` automáticamente con datos de ejemplo
 > (5 tipos de falla FTTH, 24 incidencias, checklists de diagnóstico, categorías Ishikawa).
@@ -169,9 +177,24 @@ y **15 peticiones/min** en `/api/portal`. Con `NODE_ENV=production` la API regis
 
 ### Backups
 
-- **Manual**: `npm run backup` → snapshot `VACUUM INTO` en `server/backups/` (14 copias por defecto, `BACKUP_KEEP`).
+- **Manual**: `npm run backup` → snapshot `VACUUM INTO` en `server/backups/` (14 copias por defecto, `BACKUP_KEEP`). Si `BACKUP_EXTERNO_DIR` está definido, cada snapshot se replica y **poda** también en esa carpeta externa (mismo `BACKUP_KEEP`).
 - **Automáticos**: con `NODE_ENV=production` (o `AUTO_BACKUP=1`) se programa un respaldo diario a las `AUTO_BACKUP_HOUR` (03:00), también en `server/backups/`.
-- **Monitoreo**: `GET /api/health` reporta estado de la BD y del último respaldo (`backups: { ultimo, cantidad, guardados }`), ideal para un uptime-checker externo.
+- **Restauración**: `npm run restore -- <copia.db> [destino.db]` verifica `PRAGMA integrity_check`, crea un snapshot `pre-restore-*` del estado actual en `server/backups/` y aplica la copia. Ideal probarla antes de una actualización mayor.
+- **Alertas**: si el backup automático **falla** o el último respaldo tiene **más de 26 h**, se envía un correo al `alerta_email` configurado en Ajustes → Notificaciones (o a los correos de admins activos si no está definido).
+- **Monitoreo**: `GET /api/health` reporta estado de la BD, del último respaldo (`backups: { ultimo, cantidad, guardados }`) y `admins_activos`, ideal para un uptime-checker externo.
+- **Rotación de logs pm2**: recomendada `pm2 install pm2-logrotate` (compress, 5 MB, 10 archivos retenidos) para evitar que los logs de producción crezcan sin límite.
+
+### Recuperación de acceso
+
+Si se pierde la contraseña de un administrador (o muere el único admin activo):
+
+```bash
+npm run reset-password -- admin@one.com   "NuevaClaveSegura"
+```
+
+Restablece el hash en `usuarios`, deja el evento en auditoría y no requiere conocer la clave actual
+(solo acceso CLI al servidor). Para evitar el caso de "único admin", crear una segunda cuenta admin
+desde **Usuarios** y vigilar `admins_activos` en `/api/health`.
 
 ### HTTPS con Caddy (recomendado)
 
@@ -205,10 +228,14 @@ one-soporte-tecnico/
 │   ├── auth.js                          # JWT y middleware de autenticación
 │   ├── security.js                      # Rate limiting, cabeceras de seguridad y CORS
 │   ├── validate.js                      # Validación de peticiones
-│   ├── seed.js                          # Datos de ejemplo (checklists FTTH, causas)
-│   ├── backup.js                        # Respaldos VACUUM INTO (crear/podar)
-│   ├── monitor.js                       # Backup automático diario + estado (AUTO_BACKUP_HOUR)
-│   ├── notify.js                        # Envío de correos (fire-and-forget, historial)
+│   ├── migrations.js                     # Migraciones versionadas de esquema (v1..v4)
+│   ├── seed.js                           # Datos de ejemplo (checklists FTTH, causas)
+│   ├── backup.js                         # Respaldos VACUUM INTO (crear/podar + copia externa)
+│   ├── monitor.js                        # Backup automático diario + estado + alertas (AUTO_BACKUP_HOUR)
+│   ├── notify.js                         # Envío de correos (fire-and-forget, historial)
+│   ├── audit.js                          # Registro de auditoría global (incidencias + sistema)
+│   ├── restore.js                        # Restauración verificada (npm run restore)
+│   ├── reset-password.js                 # Recuperación de acceso admin (npm run reset-password)
 │   ├── routes/
 │   │   ├── auth.js                      # Login, registro y perfil
 │   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado + auditoría + adjuntos
@@ -216,9 +243,10 @@ one-soporte-tecnico/
 │   │   ├── metrics.js                   # Indicadores + comparativo mensual
 │   │   ├── portal.js                    # Portal público (/reportar, ticket + clave)
 │   │   ├── notifications.js             # Config SMTP, prueba e historial (admin)
+│   │   ├── auditoria.js                 # Historial de auditoría global (admin)
 │   │   ├── tecnicos.js
 │   │   └── usuarios.js                  # Alta, edición, listado y activación de cuentas (admin)
-│   └── test/                            # Pruebas de API, validación, backups y correos
+│   └── test/                            # Pruebas de API, validación, backups, migraciones, restore y correos
 └── client/                              # React (Vite)
     └── src/
         ├── pages/
@@ -234,6 +262,7 @@ one-soporte-tecnico/
         │   ├── Reportar.jsx             # Portal público del cliente
         │   ├── Ajustes.jsx              # Tema, metas de servicio y correos SMTP
         │   ├── Usuarios.jsx             # Gestión de cuentas (solo admin)
+        │   ├── Auditoria.jsx            # Historial global de auditoría (solo admin)
         │   └── NotFound.jsx             # Error 404
         ├── components/
         │   ├── Layout.jsx               # Sidebar, topbar móvil y navegación

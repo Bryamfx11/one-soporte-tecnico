@@ -2,6 +2,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { leerConfigSmtp, validarConfigSmtp, guardarConfigSmtp, enviarPrueba } from '../notify.js';
+import { registrarActividad } from '../audit.js';
 
 export const notificationsRouter = express.Router();
 
@@ -15,7 +16,9 @@ notificationsRouter.put('/config', (req, res) => {
   const errors = validarConfigSmtp(req.body ?? {});
   if (errors.length) return res.status(400).json({ error: 'Error de validación', details: errors });
   guardarConfigSmtp(req.body ?? {});
-  res.json(leerConfigSmtp());
+  const conf = leerConfigSmtp();
+  registrarActividad({ usuario: req.user.email, accion: 'config_notificaciones', detalle: `SMTP ${conf.host} · remitente ${conf.from} · alertas ${conf.alertaEmail || 'no configuradas'}` });
+  res.json(conf);
 });
 
 notificationsRouter.post('/test', async (req, res) => {

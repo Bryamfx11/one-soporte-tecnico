@@ -70,7 +70,8 @@ export default function Ajustes() {
         user: notif.user ?? '',
         pass: notif.passNueva ?? '',
         from: notif.from ?? '',
-        fromName: notif.fromName ?? ''
+        fromName: notif.fromName ?? '',
+        alertaEmail: notif.alertaEmail ?? ''
       });
       setNotif({ ...saved, passNueva: '' });
       showToast('success', 'Configuración de notificaciones guardada.');
@@ -203,6 +204,7 @@ export default function Ajustes() {
               <label>Contraseña (vacío para no cambiar)<input type="password" autoComplete="new-password" value={notif.passNueva ?? ''} onChange={(e) => setNotif((n) => ({ ...n, passNueva: e.target.value }))} placeholder={notif.passConfigurada ? '••••••••' : 'contraseña'} /></label>
               <label>Correo remitente<input type="email" value={notif.from ?? ''} onChange={(e) => setNotif((n) => ({ ...n, from: e.target.value }))} placeholder="no-reply@one.com" /></label>
               <label>Nombre del remitente<input value={notif.fromName ?? ''} onChange={(e) => setNotif((n) => ({ ...n, fromName: e.target.value }))} placeholder="ONETec" /></label>
+              <label>Correo de alertas<input type="email" value={notif.alertaEmail ?? ''} onChange={(e) => setNotif((n) => ({ ...n, alertaEmail: e.target.value }))} placeholder="admin@one.com" /></label>
             </div>
             <div className="field-row">
               <button type="submit" className="btn btn-primary" disabled={savingNotif}><Save size={16} /> Guardar configuración</button>

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { validateIdParam } from '../validate.js';
+import { registrarActividad } from '../audit.js';
 
 export const usuariosRouter = express.Router();
 
@@ -123,5 +124,15 @@ usuariosRouter.patch('/:id', requireAdmin, validateId, asyncHandler(async (req, 
   }
 
   const updated = db.prepare(`${SELECT_PUBLICO} WHERE id = ?`).get(target.id);
+
+  const cambios = [];
+  if (body.nombre !== undefined) cambios.push(`nombre → ${updated.nombre}`);
+  if (body.email !== undefined) cambios.push(`email → ${updated.email}`);
+  if (body.rol !== undefined) cambios.push(`rol → ${updated.rol}`);
+  if (body.password !== undefined && body.password !== '' && body.password !== null) cambios.push('contraseña restablecida');
+  if (body.activo !== undefined) cambios.push(`activo → ${updated.activo}`);
+  const accion = body.activo === 0 ? 'usuario_desactivado' : body.activo === 1 ? 'usuario_activado' : 'usuario_actualizado';
+  registrarActividad({ usuario: req.user.email, accion, detalle: `${updated.email}: ${cambios.join(', ')}` });
+
   res.json(updated);
 }));

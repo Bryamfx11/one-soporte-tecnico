@@ -17,6 +17,8 @@
     "lint:client": "cd client && npm run lint",
     "lint": "npm run lint:server && npm run lint:client",
     "backup": "cd server && npm run backup",
+    "restore": "cd server && npm run restore",
+    "reset-password": "cd server && npm run reset-password",
     "deploy": "node scripts/deploy.cjs"
   },
   "devDependencies": {

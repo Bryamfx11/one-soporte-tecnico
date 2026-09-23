@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users, HardHat, CalendarRange } from 'lucide-react';
+import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users, HardHat, CalendarRange, History } from 'lucide-react';
 import { api, getUser, setToken, setUser, useApi } from '../api.js';
 import { useLiveData } from '../sse.js';
 import { useTheme } from '../hooks/useTheme.js';
@@ -94,6 +94,10 @@ export default function Layout() {
               <NavLink to="/usuarios" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => setOpen(false)}>
                 <Users size={18} />
                 <span>Usuarios</span>
+              </NavLink>
+              <NavLink to="/auditoria" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => setOpen(false)}>
+                <History size={18} />
+                <span>Auditoría</span>
               </NavLink>
             </>
           )}

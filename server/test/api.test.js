@@ -856,6 +856,26 @@ test('PATCH /api/usuarios/:id rechaza cuerpo vacío o solo campos desconocidos',
   assert.equal(soloDesconocido.status, 400);
 });
 
+test('GET /api/auditoria lista eventos y no expone datos sensibles', async () => {
+  const res = await request(app)
+    .get('/api/auditoria')
+    .set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body) && res.body.length > 0);
+  const eventos = res.body.filter((e) => e.accion === 'usuario_creado' || e.accion === 'usuario_actualizado');
+  assert.ok(eventos.length > 0, 'se registran eventos de cuentas');
+  const detalle = eventos.map((e) => e.detalle).join(' ');
+  assert.ok(!detalle.includes('clave123') && !detalle.includes('password'), 'la contraseña nunca aparece en auditoría');
+});
+
+test('GET /api/auditoria sin token responde 401 y con técnico 403', async () => {
+  const sinToken = await request(app).get('/api/auditoria');
+  assert.equal(sinToken.status, 401);
+
+  const conTecnico = await request(app).get('/api/auditoria').set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(conTecnico.status, 403);
+});
+
 test('POST /api/tecnicos sin token responde 401', async () => {
   const res = await request(app).post('/api/tecnicos').send({ nombre: 'Nuevo Técnico' });
   assert.equal(res.status, 401);

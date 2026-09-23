@@ -8,7 +8,7 @@ export const ESTADOS_LABEL = {
   escalada: 'Escalada'
 };
 
-const CLAVES_CONFIG = ['notif_habilitada', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_from_name'];
+const CLAVES_CONFIG = ['notif_habilitada', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_from_name', 'alerta_email'];
 
 export function leerConfigSmtp() {
   const filas = new Map();
@@ -23,6 +23,7 @@ export function leerConfigSmtp() {
   const pass = filas.get('smtp_pass') ?? '';
   const from = (filas.get('smtp_from') ?? '').trim();
   const fromName = (filas.get('smtp_from_name') ?? '').trim();
+  const alertaEmail = (filas.get('alerta_email') ?? '').trim();
   return {
     habilitada,
     host,
@@ -30,6 +31,7 @@ export function leerConfigSmtp() {
     user,
     from,
     fromName,
+    alertaEmail,
     passConfigurada: pass !== '',
     configurado: habilitada && host !== '' && from !== ''
   };
@@ -61,6 +63,11 @@ export function validarConfigSmtp(body) {
   if (body.fromName !== undefined && body.fromName !== null && typeof body.fromName !== 'string') {
     errors.push('smtp fromName debe ser texto');
   }
+  if (body.alertaEmail !== undefined && body.alertaEmail !== null && body.alertaEmail !== '') {
+    if (typeof body.alertaEmail !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(body.alertaEmail.trim())) {
+      errors.push('alertaEmail debe ser un correo válido');
+    }
+  }
   return errors;
 }
 
@@ -75,6 +82,7 @@ export function guardarConfigSmtp(body) {
   }
   upsert.run('smtp_from', String(body.from).trim());
   upsert.run('smtp_from_name', String(body.fromName ?? '').trim());
+  upsert.run('alerta_email', String(body.alertaEmail ?? '').trim());
 }
 
 export function registrarNotificacion({ incidenciaId, tipo, destinatario, asunto, estado, error = '' }) {
