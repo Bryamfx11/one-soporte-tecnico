@@ -125,6 +125,26 @@ export const MIGRATIONS = [
         );
       `);
     }
+  },
+  {
+    version: 9,
+    nombre: 'not_app',
+    // Notificaciones en la app por usuario (campana del topbar), con empuje por SSE.
+    aplicar: (db) => {
+      if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='not_app'").get()) return;
+      db.exec(`
+        CREATE TABLE not_app (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+          incidencia_id INTEGER REFERENCES incidencias(id) ON DELETE CASCADE,
+          titulo TEXT NOT NULL,
+          cuerpo TEXT NOT NULL DEFAULT '',
+          leida INTEGER NOT NULL DEFAULT 0,
+          creada_en INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_not_app_usuario ON not_app(usuario_id, leida, creada_en);
+      `);
+    }
   }
 ];
 

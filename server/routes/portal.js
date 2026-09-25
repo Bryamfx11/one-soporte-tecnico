@@ -4,6 +4,8 @@ import { db } from '../db.js';
 import { validatePortalReporte, validateCalificacion, validationMiddleware } from '../validate.js';
 import { notifyDataChange } from '../sse.js';
 import { enviarNotificacion } from '../notify.js';
+import { notificarAUsuariosActivos } from '../not_app.js';
+import { enviarWebhook } from '../webhook.js';
 
 export const portalRouter = express.Router();
 
@@ -64,6 +66,19 @@ portalRouter.post('/reportes', validationMiddleware(validatePortalReporte), (req
       const id = Number(r.lastInsertRowid);
       notifyDataChange();
       void enviarNotificacion({ tipo: 'registro', incidenciaId: id, destinatario: req.body.email, clave: clave_seguimiento });
+      const completa = db.prepare(`
+        SELECT i.*, t.nombre AS tipo_falla, tec.nombre AS tecnico
+        FROM incidencias i
+        JOIN tipos_falla t ON t.id = i.tipo_falla_id
+        LEFT JOIN tecnicos tec ON tec.id = i.tecnico_id
+        WHERE i.id = ?
+      `).get(id);
+      notificarAUsuariosActivos({
+        incidenciaId: id,
+        titulo: `Nueva incidencia ${numero_ticket}`,
+        cuerpo: `${completa.cliente} · ${completa.tipo_falla} (portal del cliente)`
+      });
+      void enviarWebhook({ evento: 'incidencia_creada', incidencia: completa, usuario: 'portal' });
       return res.status(201).json({ numero_ticket, clave_seguimiento, id });
     } catch (err) {
       if (esColisionDeTicket(err)) continue;

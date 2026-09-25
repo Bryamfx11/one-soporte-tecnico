@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users, HardHat, CalendarRange, History } from 'lucide-react';
+import { LayoutDashboard, ListTodo, BookOpen, BarChart3, Plus, Wifi, LogOut, Menu, X, User, Sun, Moon, Settings, Users, HardHat, CalendarRange, History, Bell, CheckCheck } from 'lucide-react';
 import { api, getUser, setToken, setUser, useApi } from '../api.js';
 import { useLiveData } from '../sse.js';
 import { useTheme } from '../hooks/useTheme.js';
+import { fmtFecha } from '../utils.js';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -20,8 +21,25 @@ export default function Layout() {
   const navigate = useNavigate();
   const user = getUser();
   const { data: metrica, reload: reloadMetrica } = useApi(() => api.get('/metrics/pendientes'), []);
-  useLiveData(reloadMetrica);
+  const [campanaAbierta, setCampanaAbierta] = useState(false);
+  const [noLeidas, setNoLeidas] = useState(0);
+  const [notificaciones, setNotificaciones] = useState([]);
+  useLiveData(reloadMetrica, {
+    onNotificacion: (n) => {
+      setNoLeidas((c) => c + 1);
+      setNotificaciones((prev) => [n, ...prev].slice(0, 50));
+    }
+  });
   const pendientes = metrica?.pendientes ?? 0;
+
+  useEffect(() => {
+    api.get('/notificaciones-app')
+      .then((d) => {
+        setNotificaciones(d.items ?? []);
+        setNoLeidas(d.no_leidas ?? 0);
+      })
+      .catch(() => void 0);
+  }, []);
 
   function logout() {
     setToken(null);
@@ -38,6 +56,46 @@ export default function Layout() {
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
+  useEffect(() => {
+    if (!campanaAbierta) return;
+    function onClickFuera(e) {
+      if (!e.target.closest('.campana-wrap')) setCampanaAbierta(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') setCampanaAbierta(false);
+    }
+    document.addEventListener('mousedown', onClickFuera);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickFuera);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [campanaAbierta]);
+
+  async function abrirNotificacion(n) {
+    if (!n.leida) {
+      setNoLeidas((c) => Math.max(0, c - 1));
+      setNotificaciones((prev) => prev.map((x) => (x.id === n.id ? { ...x, leida: 1 } : x)));
+      try {
+        await api.patch(`/notificaciones-app/${n.id}/leer`);
+      } catch {
+        void 0;
+      }
+    }
+    setCampanaAbierta(false);
+    if (n.incidencia_id) navigate(`/incidencias/${n.incidencia_id}`);
+  }
+
+  async function leerTodas() {
+    setNoLeidas(0);
+    setNotificaciones((prev) => prev.map((x) => ({ ...x, leida: 1 })));
+    try {
+      await api.post('/notificaciones-app/leer-todas');
+    } catch {
+      void 0;
+    }
+  }
+
   return (
     <div className="layout">
       <a className="skip-link" href="#main-content">Saltar al contenido</a>
@@ -49,6 +107,12 @@ export default function Layout() {
           <Link to="/" className="brand-link" aria-label="Ir al inicio"><img className="topbar-logo-img" src="/logo-one.png" alt="" /> ONETec</Link>
         </div>
         <div className="topbar-actions">
+          <div className="campana-wrap">
+            <button className="icon-btn campana-toggle" onClick={() => setCampanaAbierta(!campanaAbierta)} aria-label="Notificaciones" aria-expanded={campanaAbierta}>
+              <Bell size={18} />
+              {noLeidas > 0 && <span className="campana-badge">{noLeidas > 99 ? '99+' : noLeidas}</span>}
+            </button>
+          </div>
           <button className="theme-toggle" onClick={toggleTheme} aria-label={dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}>
             {dark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
@@ -113,6 +177,13 @@ export default function Layout() {
           <button className="btn btn-ghost btn-block" onClick={logout}>
             <LogOut size={16} /> Cerrar sesión
           </button>
+          <div className="sidebar-foot-acciones">
+            <div className="campana-wrap">
+              <button className="btn btn-ghost btn-block campana-toggle" onClick={() => setCampanaAbierta(!campanaAbierta)} aria-label="Notificaciones" aria-expanded={campanaAbierta}>
+                <Bell size={16} /> Notificaciones {noLeidas > 0 && <span className="campana-badge">{noLeidas > 99 ? '99+' : noLeidas}</span>}
+              </button>
+            </div>
+          </div>
           <div className="meta">
             <Wifi size={14} /> FTTH · Tunja / Bogotá
           </div>
@@ -120,6 +191,34 @@ export default function Layout() {
       </aside>
 
       {open && <div className="overlay-mobile" onClick={() => setOpen(false)} />}
+
+      <div className="campana-wrap campana-float">
+        {campanaAbierta && (
+          <div className="campana" role="region" aria-label="Panel de notificaciones">
+            <div className="campana-head">
+              <strong>Notificaciones</strong>
+              {noLeidas > 0 && (
+                <button type="button" className="btn-link campana-todas" onClick={leerTodas}><CheckCheck size={14} /> Marcar todas como leídas</button>
+              )}
+            </div>
+            {notificaciones.length === 0 ? (
+              <p className="campana-vacia soft">Sin notificaciones por ahora.</p>
+            ) : (
+              <ul className="campana-lista">
+                {notificaciones.map((n) => (
+                  <li key={n.id} className={'campana-item' + (n.leida ? '' : ' no-leida')}>
+                    <button type="button" className="campana-btn" onClick={() => abrirNotificacion(n)}>
+                      <span className="campana-titulo">{n.titulo}</span>
+                      {n.cuerpo && <span className="campana-cuerpo">{n.cuerpo}</span>}
+                      <span className="soft campana-fecha">{fmtFecha(n.creada_en)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
 
       <main id="main-content" className="content">
         <Outlet />

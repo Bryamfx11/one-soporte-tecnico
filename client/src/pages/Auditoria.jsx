@@ -24,7 +24,9 @@ export const ACCIONES_AUDITORIA = {
   solucion_guardada: 'Solución guardada en la base',
   escalamiento_automatico: 'Escalamiento automático',
   twofa_activada: '2FA activada',
-  twofa_desactivada: '2FA desactivada'
+  twofa_desactivada: '2FA desactivada',
+  webhook_config: 'Config. webhook de salida',
+  webhook_test: 'Prueba de webhook'
 };
 
 export default function Auditoria() {

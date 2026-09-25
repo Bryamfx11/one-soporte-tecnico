@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   SlidersHorizontal, Save, RotateCcw, LogOut, User as UserIcon,
-  Sun as SunIcon, Moon as MoonIcon, Mail, Send, ShieldCheck, ShieldOff
+  Sun as SunIcon, Moon as MoonIcon, Mail, Send, ShieldCheck, ShieldOff, Webhook as WebhookIcon
 } from 'lucide-react';
 import { api, getUser, setToken, setUser } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
@@ -48,6 +48,10 @@ export default function Ajustes() {
   const [sla, setSla] = useState(null);
   const [savingSla, setSavingSla] = useState(false);
 
+  const [webhook, setWebhook] = useState(null);
+  const [savingWebhook, setSavingWebhook] = useState(false);
+  const [probandoWebhook, setProbandoWebhook] = useState(false);
+
   const [twofaActiva, setTwofaActiva] = useState(null);
   const [twofaPending, setTwofaPending] = useState(null);
   const [twofaCode, setTwofaCode] = useState('');
@@ -71,6 +75,9 @@ export default function Ajustes() {
         .catch(() => void 0);
       api.get('/ajustes/operacion')
         .then((r) => setSla(r.sla))
+        .catch(() => void 0);
+      api.get('/webhook/config')
+        .then((r) => setWebhook(r))
         .catch(() => void 0);
     }
   }, [user?.rol]);
@@ -172,6 +179,37 @@ export default function Ajustes() {
       showToast('error', err.message);
     } finally {
       setTesteando(false);
+    }
+  }
+
+  async function saveWebhook(e) {
+    e.preventDefault();
+    if (!webhook) return;
+    setSavingWebhook(true);
+    try {
+      const saved = await api.put('/webhook/config', {
+        habilitada: !!webhook.habilitada,
+        url: webhook.url ?? '',
+        secret: webhook.secretNuevo ?? ''
+      });
+      setWebhook({ ...saved, secretNuevo: '' });
+      showToast('success', 'Configuración del webhook guardada.');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setSavingWebhook(false);
+    }
+  }
+
+  async function probarWebhook() {
+    setProbandoWebhook(true);
+    try {
+      const r = await api.post('/webhook/test');
+      showToast('success', `Prueba enviada a ${r.url}.`);
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setProbandoWebhook(false);
     }
   }
 
@@ -348,6 +386,40 @@ export default function Ajustes() {
             </form>
           ) : (
             <p className="soft">Consultando la configuración operativa…</p>
+          )}
+        </section>
+      )}
+
+      {user?.rol === 'admin' && (
+        <section className="card">
+          <h3><WebhookIcon size={16} /> Webhook de salida</h3>
+          <p className="soft">
+            Al crear o cerrar incidencias (y al cambiar su estado), la plataforma envía un <strong>POST</strong> en JSON a la URL
+            configurada. Si se define un secreto, cada envío viaja firmado en la cabecera <code>X-ONETec-Signature</code> (HMAC-SHA256).
+          </p>
+          {webhook ? (
+            <form onSubmit={saveWebhook}>
+              <label className="check-label">
+                <input
+                  type="checkbox"
+                  checked={!!webhook.habilitada}
+                  onChange={(e) => setWebhook((w) => ({ ...w, habilitada: e.target.checked }))}
+                />
+                Webhook activo
+              </label>
+              <label>URL del webhook
+                <input value={webhook.url ?? ''} onChange={(e) => setWebhook((w) => ({ ...w, url: e.target.value }))} placeholder="https://hooks.ejemplo.com/onetec" />
+              </label>
+              <label>Secreto (vacío para no cambiar)
+                <input type="password" autoComplete="new-password" value={webhook.secretNuevo ?? ''} onChange={(e) => setWebhook((w) => ({ ...w, secretNuevo: e.target.value }))} placeholder={webhook.secretConfigurado ? '••••••••' : 'sin secreto'} />
+              </label>
+              <div className="field-row">
+                <button type="submit" className="btn btn-primary" disabled={savingWebhook}><Save size={16} /> {savingWebhook ? 'Guardando…' : 'Guardar webhook'}</button>
+                <button type="button" className="btn btn-secondary" disabled={probandoWebhook || !webhook.habilitada} onClick={probarWebhook}><Send size={16} /> {probandoWebhook ? 'Probando…' : 'Enviar prueba'}</button>
+              </div>
+            </form>
+          ) : (
+            <p className="soft">Consultando la configuración del webhook…</p>
           )}
         </section>
       )}

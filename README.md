@@ -68,6 +68,9 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 - **Recuperación de acceso (admin)**: `npm run reset-password -- <email> <contraseña>` restablece la contraseña desde el servidor con registro en auditoría; `/api/health` reporta `admins_activos` para detectar el caso de un único administrador
 - **Alertas operativas**: ante un **fallo o atraso del backup automático** o un **escalamiento automático de casos abandonados** se envía un correo al `alerta_email` configurado (o, si no, a los correos de admins activos) usando el mismo SMTP de las notificaciones
 - **Resumen operativo diario**: cada día a las `RESUMEN_HOUR` (06:00 por defecto) se envía un correo con pendientes, nuevas/resueltas de hoy, estado de backups y admins activos; se omite si el SMTP o los destinatarios no están configurados
+- **Resumen semanal por correo**: cada `RESUMEN_SEMANAL_DIA` (`1` = lunes, por defecto) a las `RESUMEN_SEMANAL_HOUR` (07:00 por defecto) se envía un correo con la actividad de los últimos 7 días (nuevas/resueltas y promedio diario, pendientes, SLAs vencidos, calificaciones CSAT y tiempo promedio de resolución); se envía una vez por semana
+- **Webhook de salida**: configurable desde Ajustes (admin) con URL, secreto opcional (HMAC-SHA256 en la cabecera `X-ONETec-Signature`) y botón **Enviar prueba**; dispara `POST` en JSON con `{evento, incidencia, usuario}` al crear (`incidencia_creada`), cambiar estado (`estado_cambiado`) y cerrar (`incidencia_cerrada`) un caso, incluso los reportes del portal; cada intento queda en el historial de `notificaciones` y se audita (`webhook_config`/`webhook_test`)
+- **Notificaciones en la app (campana)**: una campana con contador de no leídas en la barra lateral y el topbar móvil recibe avisos en tiempo real por SSE (`notificaciones-app`): al crear un caso, cambiar su estado o escalarlo (dirigida a admins); al tocar una notificación se marca como leída y navega al detalle, con opción de "Marcar todas como leídas"; la lista persiste en la tabla `not_app`
 - **Exportación con confirmación**: al descargar reportes CSV (Dashboard e Indicadores) se muestra una notificación de éxito
 - **Estados vacíos**: las gráficas muestran un mensaje claro cuando aún no hay datos, en lugar de un lienzo en blanco
 - **Responsive**: menú lateral colapsable en dispositivos móviles
@@ -131,6 +134,7 @@ npm run dev
 | `BACKUP_EXTERNO_DIR` | Carpeta externa (USB/NAS/red) donde se replica cada snapshot; la poda aplica el mismo `BACKUP_KEEP`. Vacío = sin copia espejo |
 | `AUTO_BACKUP_HOUR` | Hora (24h) del respaldo automático diario (por defecto 03:00) |
 | `RESUMEN_HOUR` | Hora (24h) del envío del resumen operativo diario (por defecto 06:00) |
+| `RESUMEN_SEMANAL_DIA` / `RESUMEN_SEMANAL_HOUR` | Día de la semana (0=domingo…6=sábado, por defecto `1`=lunes) y hora (por defecto 07:00) del resumen semanal por correo |
 
 > Comandos operativos (ver `Producción`): `npm run backup`, `npm run restore -- <archivo.db>`,
 > `npm run reset-password -- <email> <contraseña>`.
@@ -237,11 +241,14 @@ one-soporte-tecnico/
 │   ├── security.js                      # Rate limiting, cabeceras de seguridad y CORS
 │   ├── validate.js                      # Validación de peticiones
 │   ├── sla.js                           # Cálculo de metas (SLA) por prioridad
-│   ├── migrations.js                     # Migraciones versionadas de esquema (v1..v8)
+│   ├── migrations.js                     # Migraciones versionadas de esquema (v1..v9)
 │   ├── seed.js                           # Datos de ejemplo (checklists FTTH, causas)
 │   ├── backup.js                         # Respaldos VACUUM INTO (crear/podar + copia externa)
-│   ├── monitor.js                        # Backup automático diario + resumen diario + estado + alertas (AUTO_BACKUP_HOUR/RESUMEN_HOUR) + escalamiento automático
+│   ├── monitor.js                        # Backup automático + resúmenes (diario/semanal) + estado + alertas (AUTO_BACKUP_HOUR/RESUMEN_HOUR/RESUMEN_SEMANAL_*) + escalamiento automático
 │   ├── notify.js                         # Envío de correos (fire-and-forget, historial, CTA en cierres)
+│   ├── webhook.js                        # Webhook de salida (HMAC-SHA256, historial, nunca lanza)
+│   ├── not_app.js                        # Notificaciones en la app por usuario (campana)
+│   ├── sse.js                            # Server-Sent Events: broadcast `update` + empuje `notificacion` por usuario
 │   ├── audit.js                          # Registro de auditoría global (incidencias + sistema)
 │   ├── restore.js                        # Restauración verificada (npm run restore)
 │   ├── reset-password.js                 # Recuperación de acceso admin (npm run reset-password)
@@ -254,6 +261,8 @@ one-soporte-tecnico/
 │   │   ├── ajustes.js                   # Metas de servicio (SLA) y escalamiento (admin)
 │   │   ├── portal.js                    # Portal público (/reportar, ticket + clave, calificación)
 │   │   ├── notifications.js             # Config SMTP, prueba e historial (admin)
+│   │   ├── webhook.js                   # Config del webhook de salida y prueba (admin)
+│   │   ├── notificaciones-app.js        # Campana: listar y marcar leídas (auth)
 │   │   ├── auditoria.js                 # Historial de auditoría global (admin; búsqueda, filtro y CSV)
 │   │   ├── tecnicos.js
 │   │   └── usuarios.js                  # Alta, edición, listado y activación de cuentas (admin)
@@ -271,12 +280,12 @@ one-soporte-tecnico/
         │   ├── Indicadores.jsx          # Métricas del servicio
         │   ├── Comparativo.jsx          # Reporte mensual mes vs mes
         │   ├── Reportar.jsx             # Portal público del cliente (seguimiento + calificación)
-        │   ├── Ajustes.jsx              # Tema, metas de servicio (SLA), correos SMTP y 2FA
+        │   ├── Ajustes.jsx              # Tema, metas de servicio (SLA), webhook de salida, correos SMTP y 2FA
         │   ├── Usuarios.jsx             # Gestión de cuentas (solo admin)
         │   ├── Auditoria.jsx            # Historial global de auditoría con búsqueda y CSV (solo admin)
         │   └── NotFound.jsx             # Error 404
         ├── components/
-        │   ├── Layout.jsx               # Sidebar, topbar móvil y navegación
+        │   ├── Layout.jsx               # Sidebar, topbar móvil, navegación y campana de notificaciones
         │   ├── RequireAuth.jsx          # Guard de rutas protegidas
         │   ├── Toast.jsx                # Notificaciones (contexto)
         │   └── ui.jsx                   # Componentes reutilizables

@@ -3,18 +3,27 @@ import path from 'node:path';
 import { crearBackup, BACKUP_DIR, BACKUP_KEEP } from './backup.js';
 import { leerConfigSmtp, transporte, remitenteDesdeConfig, registrarNotificacion } from './notify.js';
 import { db } from './db.js';
-import { metasHoras } from './sla.js';
+import { metasHoras, calcularSla } from './sla.js';
+import { notificarAUsuariosActivos } from './not_app.js';
 
 export const AUTO_BACKUP_HOUR = clampHora(Number(process.env.AUTO_BACKUP_HOUR ?? 3));
 export const RESUMEN_HOUR = clampHora(Number(process.env.RESUMEN_HOUR ?? 6));
+export const RESUMEN_SEMANAL_DIA = clampDia(Number(process.env.RESUMEN_SEMANAL_DIA ?? 1));
+export const RESUMEN_SEMANAL_HOUR = clampHora(Number(process.env.RESUMEN_SEMANAL_HOUR ?? 7));
 const INTERVALO_MS = 10 * 60 * 1000;
 const ATRASO_MAX_HORAS = 26;
 const CO_OFFSET_MS = -5 * 60 * 60 * 1000; // Bogotá (UTC-5)
 const DIA_MS = 24 * 60 * 60 * 1000;
+const SEMANA_MS = 7 * DIA_MS;
 
 function clampHora(n) {
   if (Number.isInteger(n) && n >= 0 && n <= 23) return n;
   return 3;
+}
+
+function clampDia(n) {
+  if (Number.isInteger(n) && n >= 0 && n <= 6) return n;
+  return 1; // domingo=0 … sábado=6; por defecto lunes
 }
 
 function escapar(s) {
@@ -59,6 +68,14 @@ function claveDia() {
 // Media noche de hoy en Bogotá como epoch (ms).
 function inicioDeHoyBogota() {
   return Math.floor((Date.now() + CO_OFFSET_MS) / DIA_MS) * DIA_MS - CO_OFFSET_MS;
+}
+
+// Clave de la semana (lunes de la semana actual en Bogotá, YYYY-M-D) para deduplicar.
+function claveSemana() {
+  const b = new Date(Date.now() + CO_OFFSET_MS);
+  const diaSemana = b.getUTCDay(); // 0 = domingo
+  const lunes = new Date(b.getTime() - (diaSemana === 0 ? 6 : diaSemana - 1) * DIA_MS + CO_OFFSET_MS);
+  return `${lunes.getUTCFullYear()}-${lunes.getUTCMonth() + 1}-${lunes.getUTCDate()}`;
 }
 
 // Compara la última copia local con el tiempo máximo tolerable y avisa una vez al día.
@@ -109,9 +126,51 @@ export async function enviarResumenDiario() {
   }
 }
 
+// Resumen semanal por correo (lunes por defecto): actividad de los últimos 7 días.
+// Nunca lanza; no envía (ni registra) si SMTP o destinatarios no están configurados.
+export async function enviarResumenSemanal() {
+  try {
+    const conf = leerConfigSmtp();
+    if (!conf.configurado) return false;
+    const destinatarios = destinatariosAlerta(conf);
+    if (destinatarios.length === 0) return false;
+
+    const hace7 = Date.now() - SEMANA_MS;
+    const inicioTexto = new Date(hace7 + CO_OFFSET_MS).toISOString().slice(0, 10);
+    const finTexto = new Date(Date.now() + CO_OFFSET_MS).toISOString().slice(0, 10);
+
+    const nuevas = db.prepare('SELECT COUNT(*) AS c FROM incidencias WHERE creada_en >= ?').get(hace7).c;
+    const resueltas = db.prepare('SELECT COUNT(*) AS c FROM incidencias WHERE estado = ? AND resuelta_en >= ?').get('resuelta', hace7).c;
+    const pendientes = db.prepare("SELECT COUNT(*) AS c FROM incidencias WHERE estado IN ('nueva','en_diagnostico')").get().c;
+    const abiertas = db.prepare("SELECT estado, prioridad, creada_en FROM incidencias WHERE estado IN ('nueva','en_diagnostico')").all();
+    const slaVencidas = abiertas.filter((i) => calcularSla(i).estado === 'vencido').length;
+
+    const califs = db.prepare('SELECT valor FROM calificaciones WHERE creada_en >= ?').all(hace7);
+    const prom = califs.length ? (califs.reduce((s, c) => s + c.valor, 0) / califs.length) : null;
+
+    const filaTiempo = db.prepare('SELECT AVG(resuelta_en - creada_en) AS ms FROM incidencias WHERE estado = ? AND resuelta_en >= ?').get('resuelta', hace7);
+    const tMin = filaTiempo?.ms != null ? Math.round(filaTiempo.ms / 60000) : null;
+
+    const cuerpo = [
+      `Período: ${inicioTexto} → ${finTexto}`,
+      `Nuevas: ${nuevas} (promedio ${nuevas ? (nuevas / 7).toFixed(1) : 0}/día)`,
+      `Resueltas: ${resueltas} (promedio ${resueltas ? (resueltas / 7).toFixed(1) : 0}/día)`,
+      `Tiempo promedio de resolución: ${tMin == null ? '—' : `${tMin} min`}`,
+      `Pendientes actuales: ${pendientes}`,
+      `Casos abiertos con SLA vencido: ${slaVencidas}`,
+      `Valoraciones recibidas: ${califs.length}${prom != null ? ` (promedio ${prom.toFixed(2)}/5)` : ''}`
+    ].join('\n');
+
+    return enviarAlerta({ asunto: 'Resumen operativo semanal', cuerpo });
+  } catch {
+    return false;
+  }
+}
+
 export function programarBackupDiario() {
   let diaEjecutado = '';
   let diaResumen = '';
+  let semanaEjecutada = '';
   const timer = setInterval(() => {
     const ahora = new Date();
     const hoy = claveDia();
@@ -119,6 +178,10 @@ export function programarBackupDiario() {
     if (ahora.getHours() === RESUMEN_HOUR && diaResumen !== hoy) {
       diaResumen = hoy;
       void enviarResumenDiario();
+    }
+    if (ahora.getDay() === RESUMEN_SEMANAL_DIA && ahora.getHours() === RESUMEN_SEMANAL_HOUR && semanaEjecutada !== claveSemana()) {
+      semanaEjecutada = claveSemana();
+      void enviarResumenSemanal();
     }
     if (ahora.getMinutes() % 30 === 0) {
       void escalarAbandonadas();
@@ -161,6 +224,12 @@ export function escalarAbandonadas() {
     for (const c of casos) {
       const sinActividad = Math.max(1, Math.round((Date.now() - c.creada_en) / 3600000));
       insert.run(c.id, 'Sistema', 'escalamiento_automatico', `Sin actividad en ${sinActividad} h · escalada por el sistema`, Date.now());
+      notificarAUsuariosActivos({
+        rol: 'admin',
+        incidenciaId: c.id,
+        titulo: `${c.numero_ticket} escalada por inactividad`,
+        cuerpo: `Sin actividad en ${sinActividad} h · ${c.cliente}`
+      });
     }
     escaladas = casos.length;
 

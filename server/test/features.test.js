@@ -22,6 +22,7 @@ const { default: app } = await import('../app.js');
 const { db } = await import('../db.js');
 const { calcularSla, guardarMetas } = await import('../sla.js');
 const { escalarAbandonadas } = await import('../monitor.js');
+const { guardarConfigWebhook, enviarWebhook } = await import('../webhook.js');
 
 let adminToken = '';
 let tecnicoToken = '';
@@ -187,4 +188,144 @@ test('GET /api/metrics/dashboard reporta satisfacción', async () => {
   assert.equal(res.status, 200);
   assert.equal(res.body.satisfacciones, 1);
   assert.equal(res.body.satisfaccion_promedio, 5);
+});
+
+test('GET/PUT /api/webhook/config solo admin y valida la URL', async () => {
+  const sinPermiso = await request(app).put('/api/webhook/config').set('Authorization', `Bearer ${tecnicoToken}`)
+    .send({ habilitada: true, url: 'https://hook.test/one' });
+  assert.equal(sinPermiso.status, 403);
+
+  const invalida = await request(app).put('/api/webhook/config').set('Authorization', `Bearer ${adminToken}`)
+    .send({ habilitada: true, url: 'no-es-una-url' });
+  assert.equal(invalida.status, 400);
+  assert.ok(Array.isArray(invalida.body.details));
+
+  const ok = await request(app).put('/api/webhook/config').set('Authorization', `Bearer ${adminToken}`)
+    .send({ habilitada: true, url: 'https://hook.test/one', secret: 's3cret' });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.configurado, true);
+  assert.equal(ok.body.secretConfigurado, true);
+
+  const get = await request(app).get('/api/webhook/config').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(get.status, 200);
+  assert.equal(get.body.url, 'https://hook.test/one');
+  assert.equal(get.body.habilitada, true);
+
+  const auditado = db.prepare("SELECT COUNT(*) AS c FROM actividad WHERE accion = 'webhook_config' AND usuario = 'admin@one.com'").get().c;
+  assert.ok(auditado >= 1);
+});
+
+test('POST /api/webhook/test responde 409 sin configuración y 502 si el envío falla', async () => {
+  guardarConfigWebhook({ habilitada: false, url: 'https://hook.test/one' });
+  const sin = await request(app).post('/api/webhook/test').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(sin.status, 409);
+
+  guardarConfigWebhook({ habilitada: true, url: 'https://hook.test/fail' });
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('boom'); };
+  try {
+    const fail = await request(app).post('/api/webhook/test').set('Authorization', `Bearer ${adminToken}`);
+    assert.equal(fail.status, 502);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('enviarWebhook publica el evento firmado y registra el intento', async () => {
+  guardarConfigWebhook({ habilitada: true, url: 'https://hook.test/sign', secret: 's3cret' });
+  const incId = insertarIncidencia({ estado: 'nueva' });
+  const inc = db.prepare(`SELECT i.id, i.numero_ticket, i.estado, i.prioridad, i.cliente, i.barrio, i.descripcion, i.email, i.creada_en, i.resuelta_en, i.solucion_aplicada, t.nombre AS tipo_falla, tec.nombre AS tecnico
+    FROM incidencias i JOIN tipos_falla t ON t.id = i.tipo_falla_id LEFT JOIN tecnicos tec ON tec.id = i.tecnico_id WHERE i.id = ?`).get(incId);
+  let capturado = null;
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    capturado = { url, opts };
+    return { ok: true, status: 200 };
+  };
+  try {
+    const ok = await enviarWebhook({ evento: 'incidencia_creada', incidencia: inc, usuario: 'admin' });
+    assert.equal(ok, true);
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.equal(capturado.url, 'https://hook.test/sign');
+  const body = JSON.parse(capturado.opts.body);
+  assert.equal(body.evento, 'incidencia_creada');
+  assert.equal(body.incidencia.numero_ticket, inc.numero_ticket);
+  assert.ok(body.fecha);
+  assert.ok(capturado.opts.headers['X-ONETec-Signature'], 'firma HMAC presente cuando hay secreto');
+  const fila = db.prepare("SELECT * FROM notificaciones WHERE tipo = 'webhook' ORDER BY id DESC LIMIT 1").get();
+  assert.equal(fila.estado, 'enviado');
+  assert.equal(fila.destinatario, 'https://hook.test/sign');
+});
+
+test('enviarWebhook sin configuración no publica y con destino malo registra error', async () => {
+  guardarConfigWebhook({ habilitada: false, url: 'https://hook.test/one' });
+  let llamado = false;
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => { llamado = true; return { ok: true }; };
+  try {
+    const ok = await enviarWebhook({ evento: 'test' });
+    assert.equal(ok, false);
+    assert.equal(llamado, false);
+  } finally {
+    globalThis.fetch = original;
+  }
+
+  guardarConfigWebhook({ habilitada: true, url: 'https://hook.test/malo' });
+  const maloId = insertarIncidencia({ estado: 'nueva' });
+  globalThis.fetch = async () => { throw new Error('ECONNREFUSED'); };
+  try {
+    const fn = await enviarWebhook({ evento: 'estado_cambiado', incidencia: { id: maloId, numero_ticket: 'ONE-0005' } });
+    assert.equal(fn, false);
+  } finally {
+    globalThis.fetch = original;
+  }
+  const fila = db.prepare("SELECT * FROM notificaciones WHERE tipo = 'webhook' AND destinatario = 'https://hook.test/malo' ORDER BY id DESC LIMIT 1").get();
+  assert.equal(fila.estado, 'error');
+  assert.match(fila.error, /ECONNREFUSED/);
+});
+
+test('crear incidencia genera notificaciones en la app para usuarios activos', async () => {
+  guardarConfigWebhook({ habilitada: false, url: '' });
+  const adminId = db.prepare("SELECT id FROM usuarios WHERE email = 'admin@one.com'").get().id;
+  const antes = db.prepare('SELECT COUNT(*) AS c FROM not_app WHERE usuario_id = ?').get(adminId).c;
+
+  const res = await request(app).post('/api/incidents').set('Authorization', `Bearer ${adminToken}`)
+    .send({ cliente: 'Cliente notif', tipo_falla_id: 1, prioridad: 'media', descripcion: 'Prueba de notificaciones en la app' });
+  assert.equal(res.status, 201);
+
+  const filasAdmin = () => db.prepare('SELECT n.* FROM not_app n WHERE n.usuario_id = ?').all(adminId);
+  assert.ok(filasAdmin().length > antes, 'se crean notificaciones para el admin');
+  const ultima = filasAdmin()[filasAdmin().length - 1];
+  assert.match(ultima.titulo, /Nueva incidencia/);
+  assert.equal(ultima.leida, 0);
+  assert.equal(ultima.incidencia_id, res.body.id);
+});
+
+test('GET /api/notificaciones-app lista, PATCH marca leídas y /leer-todas limpia', async () => {
+  const adminId = db.prepare("SELECT id FROM usuarios WHERE email = 'admin@one.com'").get().id;
+  const lista = await request(app).get('/api/notificaciones-app').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(lista.status, 200);
+  assert.ok(lista.body.no_leidas >= 1);
+  assert.ok(lista.body.items.length >= 1);
+
+  const unaNoLeida = lista.body.items.find((n) => n.leida === 0) ?? lista.body.items[0];
+  const marcar = await request(app).patch(`/api/notificaciones-app/${unaNoLeida.id}/leer`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(marcar.status, 200);
+
+  const lista2 = await request(app).get('/api/notificaciones-app').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(lista2.body.no_leidas, lista.body.no_leidas - 1);
+
+  const marcarMal = await request(app).patch('/api/notificaciones-app/999999/leer').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(marcarMal.status, 404);
+
+  const marcarAjeno = await request(app).patch(`/api/notificaciones-app/${unaNoLeida.id}/leer`).set('Authorization', `Bearer ${tecnicoToken}`);
+  assert.equal(marcarAjeno.status, 404, 'un usuario no marca notificaciones de otros');
+
+  const todas = await request(app).post('/api/notificaciones-app/leer-todas').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(todas.status, 200);
+  const lista3 = await request(app).get('/api/notificaciones-app').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(lista3.body.no_leidas, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS c FROM not_app WHERE usuario_id = ? AND leida = 0').get(adminId).c, 0);
 });

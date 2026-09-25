@@ -4,11 +4,13 @@ import { getToken, setToken, setUser } from './api.js';
 const RECONNECT_INICIAL = 3000;
 const RECONNECT_MAX = 30000;
 
-export function useLiveData(reload, { enabled = true, onChange } = {}) {
+export function useLiveData(reload, { enabled = true, onChange, onNotificacion } = {}) {
   const onChangeRef = useRef(onChange);
+  const onNotificacionRef = useRef(onNotificacion);
 
   useEffect(() => {
     onChangeRef.current = onChange;
+    onNotificacionRef.current = onNotificacion;
   });
 
   useEffect(() => {
@@ -67,6 +69,8 @@ export function useLiveData(reload, { enabled = true, onChange } = {}) {
                       const evento = JSON.parse(linea.slice(6));
                       if (evento.type === 'update') {
                         agendaRefresco();
+                      } else if (evento.type === 'notificacion' && onNotificacionRef.current) {
+                        onNotificacionRef.current(evento.data);
                       }
                     } catch {
                       void 0;

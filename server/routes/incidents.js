@@ -10,7 +10,9 @@ import {
 } from '../validate.js';
 import { requireAdmin } from '../auth.js';
 import { notifyDataChange } from '../sse.js';
-import { enviarNotificacion } from '../notify.js';
+import { enviarNotificacion, ESTADOS_LABEL } from '../notify.js';
+import { notificarAUsuariosActivos } from '../not_app.js';
+import { enviarWebhook } from '../webhook.js';
 import { calcularSla, slaDeIncidencias } from '../sla.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -236,7 +238,14 @@ incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, re
     registrarActividad(nuevoId, req.user.nombre, 'tecnico_asignado', `Asignación automática: ${autoAsignado.nombre}`);
   }
   notifyDataChange();
-  res.status(201).json(mapInc(buscarIncidenciaCompleta(nuevoId)));
+  const completa = buscarIncidenciaCompleta(nuevoId);
+  notificarAUsuariosActivos({
+    incidenciaId: nuevoId,
+    titulo: `Nueva incidencia ${completa.numero_ticket}`,
+    cuerpo: `${completa.cliente} · ${completa.tipo_falla} (${completa.prioridad})`
+  });
+  void enviarWebhook({ evento: 'incidencia_creada', incidencia: completa, usuario: req.user.nombre });
+  res.status(201).json(mapInc(completa));
 });
 
 incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentUpdate), (req, res) => {
@@ -281,6 +290,12 @@ incidentsRouter.patch('/:id', validateId, validationMiddleware(validateIncidentU
   const actualizado = buscarIncidenciaCompleta(req.params.id);
   if (estadoCambiado) {
     void enviarNotificacion({ tipo: 'estado', incidenciaId: Number(actualizado.id), destinatario: actualizado.email });
+    notificarAUsuariosActivos({
+      incidenciaId: actualizado.id,
+      titulo: `${actualizado.numero_ticket} · ${ESTADOS_LABEL[actualizado.estado] ?? actualizado.estado}`,
+      cuerpo: `${actualizado.cliente} cambió a ${ESTADOS_LABEL[actualizado.estado] ?? actualizado.estado}`
+    });
+    void enviarWebhook({ evento: 'estado_cambiado', incidencia: actualizado, usuario: req.user.nombre });
   }
   res.json(mapInc(actualizado));
 });
@@ -314,7 +329,14 @@ incidentsRouter.post('/:id/diagnostico', validateId, validationMiddleware(valida
     db.exec('COMMIT');
     registrarActividad(inc.id, req.user.nombre, 'diagnostico', `Checklist ${req.body.respuestas.length} respuestas`);
     if (inc.estado !== 'en_diagnostico') {
-      void enviarNotificacion({ tipo: 'estado', incidenciaId: inc.id, destinatario: buscarIncidenciaCompleta(inc.id).email });
+      const act = buscarIncidenciaCompleta(inc.id);
+      void enviarNotificacion({ tipo: 'estado', incidenciaId: inc.id, destinatario: act.email });
+      notificarAUsuariosActivos({
+        incidenciaId: inc.id,
+        titulo: `${act.numero_ticket} · En diagnóstico`,
+        cuerpo: `${act.cliente} pasó a diagnóstico`
+      });
+      void enviarWebhook({ evento: 'estado_cambiado', incidencia: act, usuario: req.user.nombre });
     }
   } catch (err) {
     db.exec('ROLLBACK');
@@ -341,9 +363,16 @@ incidentsRouter.post('/:id/finalizar', validateId, validationMiddleware(validate
   db.prepare(`UPDATE incidencias SET estado = ?, causa_raiz_id = ?, solucion_aplicada = ?, resuelta_en = ? WHERE id = ?`)
     .run(estado, Number(req.body.causa_raiz_id), solucion.slice(0, 2000), resueltaEn, inc.id);
   registrarActividad(inc.id, req.user.nombre, 'cierre', `Caso cerrado como ${estado}`);
-  void enviarNotificacion({ tipo: 'cierre', incidenciaId: inc.id, destinatario: buscarIncidenciaCompleta(inc.id).email });
+  const cerrada = buscarIncidenciaCompleta(inc.id);
+  void enviarNotificacion({ tipo: 'cierre', incidenciaId: inc.id, destinatario: cerrada.email });
+  notificarAUsuariosActivos({
+    incidenciaId: inc.id,
+    titulo: `${cerrada.numero_ticket} · Caso cerrado`,
+    cuerpo: `${cerrada.cliente} · ${ESTADOS_LABEL[estado] ?? estado}`
+  });
+  void enviarWebhook({ evento: 'incidencia_cerrada', incidencia: cerrada, usuario: req.user.nombre });
   notifyDataChange();
-  res.json(mapInc(buscarIncidenciaCompleta(req.params.id)));
+  res.json(mapInc(cerrada));
 });
 
 incidentsRouter.post('/:id/adjuntos', validateId, (req, res) => {

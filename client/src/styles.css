@@ -530,6 +530,52 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .sidebar-user-name { font-weight: 600; color: #fff; font-size: 13px; }
 .sidebar-user-rol { font-size: 11px; color: #94a3b8; text-transform: capitalize; }
 
+/* ---------- Campana de notificaciones ---------- */
+.sidebar-foot-acciones { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.btn-link { border: none; background: transparent; color: var(--primary); cursor: pointer; padding: 0; font-size: 14px; }
+.btn-link:hover { text-decoration: underline; }
+
+.campana-wrap { position: relative; }
+.campana-wrap.campana-float { position: static; }
+.campana-float .campana { position: fixed; top: 12px; right: 16px; }
+
+.campana-toggle { position: relative; }
+.campana-badge {
+  background: #ef4444; color: #fff; font-size: 11px; font-weight: 700;
+  border-radius: 999px; min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.campana-toggle .campana-badge { position: absolute; top: -4px; right: -4px; }
+.sidebar-foot-acciones .campana-toggle .campana-badge { position: static; top: auto; right: auto; margin-left: auto; }
+
+.campana {
+  width: 340px; max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 70px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, .18);
+}
+.campana-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--panel);
+  border-radius: 12px 12px 0 0;
+}
+.campana-todas { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.campana-vacia { padding: 24px 14px; text-align: center; }
+.campana-lista { list-style: none; margin: 0; padding: 6px; }
+.campana-item { border-radius: 8px; }
+.campana-item.no-leida { background: var(--tint); }
+.campana-item.no-leida .campana-titulo { font-weight: 700; }
+.campana-btn {
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+  border: none; background: transparent; text-align: left; cursor: pointer;
+  padding: 10px 12px; border-radius: 8px; font-family: inherit; color: var(--text);
+}
+.campana-btn:hover { background: var(--hover); }
+.campana-titulo { font-size: 13px; font-weight: 600; }
+.campana-cuerpo { font-size: 12px; color: var(--muted); }
+.campana-fecha { font-size: 11px; }
+
 /* ---------- Login ---------- */
 .login-wrap {
   min-height: 100vh;
