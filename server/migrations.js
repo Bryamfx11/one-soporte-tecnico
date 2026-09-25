@@ -89,6 +89,42 @@ export const MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_notas_inc ON notas(incidencia_id);
       `);
     }
+  },
+  {
+    version: 7,
+    nombre: 'soluciones_kb',
+    // Base de conocimiento viva: soluciones registradas desde casos resueltos.
+    aplicar: (db) => {
+      if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='soluciones'").get()) return;
+      db.exec(`
+        CREATE TABLE soluciones (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tipo_falla_id INTEGER NOT NULL REFERENCES tipos_falla(id),
+          titulo TEXT NOT NULL,
+          contenido TEXT NOT NULL,
+          usuario TEXT NOT NULL,
+          creada_en INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_soluciones_tipo ON soluciones(tipo_falla_id);
+      `);
+    }
+  },
+  {
+    version: 8,
+    nombre: 'calificaciones_cliente',
+    // CSAT del cliente: una valoración por incidencia resuelta (ticket + clave).
+    aplicar: (db) => {
+      if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='calificaciones'").get()) return;
+      db.exec(`
+        CREATE TABLE calificaciones (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          incidencia_id INTEGER NOT NULL UNIQUE REFERENCES incidencias(id) ON DELETE CASCADE,
+          valor INTEGER NOT NULL CHECK (valor >= 1 AND valor <= 5),
+          comentario TEXT NOT NULL DEFAULT '',
+          creada_en INTEGER NOT NULL
+        );
+      `);
+    }
   }
 ];
 

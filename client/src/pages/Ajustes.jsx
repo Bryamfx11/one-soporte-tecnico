@@ -45,6 +45,9 @@ export default function Ajustes() {
   const [savingNotif, setSavingNotif] = useState(false);
   const [testeando, setTesteando] = useState(false);
 
+  const [sla, setSla] = useState(null);
+  const [savingSla, setSavingSla] = useState(false);
+
   const [twofaActiva, setTwofaActiva] = useState(null);
   const [twofaPending, setTwofaPending] = useState(null);
   const [twofaCode, setTwofaCode] = useState('');
@@ -66,8 +69,31 @@ export default function Ajustes() {
       api.get('/auth/2fa')
         .then((r) => setTwofaActiva(!!r.activa))
         .catch(() => void 0);
+      api.get('/ajustes/operacion')
+        .then((r) => setSla(r.sla))
+        .catch(() => void 0);
     }
   }, [user?.rol]);
+
+  async function saveSla(e) {
+    e.preventDefault();
+    if (!sla) return;
+    setSavingSla(true);
+    try {
+      const saved = await api.put('/ajustes/operacion', {
+        alta: Number(sla.alta),
+        media: Number(sla.media),
+        baja: Number(sla.baja),
+        escalamiento: Number(sla.escalamiento)
+      });
+      setSla(saved.sla);
+      showToast('success', 'Metas de atención (SLA) guardadas.');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setSavingSla(false);
+    }
+  }
 
   async function activar2fa() {
     setTwofaBusy(true);
@@ -125,7 +151,8 @@ export default function Ajustes() {
         pass: notif.passNueva ?? '',
         from: notif.from ?? '',
         fromName: notif.fromName ?? '',
-        alertaEmail: notif.alertaEmail ?? ''
+        alertaEmail: notif.alertaEmail ?? '',
+        publicUrl: notif.publicUrl ?? ''
       });
       setNotif({ ...saved, passNueva: '' });
       showToast('success', 'Configuración de notificaciones guardada.');
@@ -300,6 +327,31 @@ export default function Ajustes() {
         </section>
       )}
 
+      {user?.rol === 'admin' && (
+        <section className="card">
+          <h3><SlidersHorizontal size={16} /> Metas de atención (SLA) y escalamiento</h3>
+          {sla ? (
+            <form onSubmit={saveSla}>
+              <p className="soft">
+                Horas máximas por prioridad antes de marcar el caso como <strong>vencido</strong>. El escalamiento
+                automático notifica por correo a los admins cuando un caso abierto no recibe actividad en ese lapso.
+              </p>
+              <div className="grid three">
+                <label>Prioridad alta (h)<input type="number" min="1" max="720" value={sla.alta} onChange={(e) => setSla((s) => ({ ...s, alta: Number(e.target.value) }))} /></label>
+                <label>Prioridad media (h)<input type="number" min="1" max="720" value={sla.media} onChange={(e) => setSla((s) => ({ ...s, media: Number(e.target.value) }))} /></label>
+                <label>Prioridad baja (h)<input type="number" min="1" max="720" value={sla.baja} onChange={(e) => setSla((s) => ({ ...s, baja: Number(e.target.value) }))} /></label>
+                <label>Escalamiento si inactivo (h)<input type="number" min="1" max="720" value={sla.escalamiento} onChange={(e) => setSla((s) => ({ ...s, escalamiento: Number(e.target.value) }))} /></label>
+              </div>
+              <div className="field-row">
+                <button type="submit" className="btn btn-primary" disabled={savingSla}><Save size={16} /> {savingSla ? 'Guardando…' : 'Guardar metas'}</button>
+              </div>
+            </form>
+          ) : (
+            <p className="soft">Consultando la configuración operativa…</p>
+          )}
+        </section>
+      )}
+
       {user?.rol === 'admin' && notif && (
         <section className="card">
           <h3><Mail size={16} /> Notificaciones por correo</h3>
@@ -324,6 +376,7 @@ export default function Ajustes() {
               <label>Correo remitente<input type="email" value={notif.from ?? ''} onChange={(e) => setNotif((n) => ({ ...n, from: e.target.value }))} placeholder="no-reply@one.com" /></label>
               <label>Nombre del remitente<input value={notif.fromName ?? ''} onChange={(e) => setNotif((n) => ({ ...n, fromName: e.target.value }))} placeholder="ONETec" /></label>
               <label>Correo de alertas<input type="email" value={notif.alertaEmail ?? ''} onChange={(e) => setNotif((n) => ({ ...n, alertaEmail: e.target.value }))} placeholder="admin@one.com" /></label>
+              <label>URL pública (portal)<input value={notif.publicUrl ?? ''} onChange={(e) => setNotif((n) => ({ ...n, publicUrl: e.target.value }))} placeholder="https://soporte.one.co" /></label>
             </div>
             <div className="field-row">
               <button type="submit" className="btn btn-primary" disabled={savingNotif}><Save size={16} /> Guardar configuración</button>

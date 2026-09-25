@@ -3,6 +3,7 @@ import path from 'node:path';
 import { crearBackup, BACKUP_DIR, BACKUP_KEEP } from './backup.js';
 import { leerConfigSmtp, transporte, remitenteDesdeConfig, registrarNotificacion } from './notify.js';
 import { db } from './db.js';
+import { metasHoras } from './sla.js';
 
 export const AUTO_BACKUP_HOUR = clampHora(Number(process.env.AUTO_BACKUP_HOUR ?? 3));
 export const RESUMEN_HOUR = clampHora(Number(process.env.RESUMEN_HOUR ?? 6));
@@ -119,6 +120,9 @@ export function programarBackupDiario() {
       diaResumen = hoy;
       void enviarResumenDiario();
     }
+    if (ahora.getMinutes() % 30 === 0) {
+      void escalarAbandonadas();
+    }
     if (ahora.getHours() !== AUTO_BACKUP_HOUR || diaEjecutado === hoy) return;
     try {
       const dest = crearBackup();
@@ -131,6 +135,47 @@ export function programarBackupDiario() {
   }, INTERVALO_MS);
   timer.unref();
   return timer;
+}
+
+// Escalamiento automático de casos sin atención: incidencias abiertas (nueva/en
+// diagnóstico) sin actividad en las últimas N horas (config `escalamiento_horas`).
+// Cada escalamiento inserta una fila en `actividad`, usada como deduplicador: el
+// caso no vuelve a escalar hasta que pase de nuevo el umbral de inactividad.
+export function escalarAbandonadas() {
+  let escaladas = 0;
+  try {
+    const horas = metasHoras().escalamiento;
+    const cutoff = Date.now() - horas * 3600000;
+    const casos = db.prepare(`
+      SELECT i.id, i.numero_ticket, i.cliente, i.prioridad, i.creada_en, i.estado, t.nombre AS tecnico
+      FROM incidencias i
+      LEFT JOIN tecnicos t ON t.id = i.tecnico_id
+      WHERE i.estado IN ('nueva','en_diagnostico')
+        AND i.creada_en < ?
+        AND NOT EXISTS (SELECT 1 FROM actividad a WHERE a.incidencia_id = i.id AND a.creada_en >= ?)
+    `).all(cutoff, cutoff);
+
+    if (casos.length === 0) return 0;
+
+    const insert = db.prepare('INSERT INTO actividad (incidencia_id, usuario, accion, detalle, creada_en) VALUES (?, ?, ?, ?, ?)');
+    for (const c of casos) {
+      const sinActividad = Math.max(1, Math.round((Date.now() - c.creada_en) / 3600000));
+      insert.run(c.id, 'Sistema', 'escalamiento_automatico', `Sin actividad en ${sinActividad} h · escalada por el sistema`, Date.now());
+    }
+    escaladas = casos.length;
+
+    const cuerpo = [
+      `Se detectaron ${escaladas} caso(s) abierto(s) sin actividad en las últimas ${horas} horas:`,
+      '',
+      ...casos.map((c) => `· ${c.numero_ticket} — ${c.cliente} (prioridad ${c.prioridad}) — técnico: ${c.tecnico ?? 'sin asignar'} — abierta hace ${Math.round((Date.now() - c.creada_en) / 3600000)} h`),
+      '',
+      'Revise estos casos en la plataforma y priorice su atención.'
+    ].join('\n');
+    void enviarAlerta({ asunto: `Escalamiento automático: ${escaladas} caso(s) sin atención`, cuerpo });
+  } catch (err) {
+    console.error(`[monitor] falló el escalamiento automático: ${err.message}`);
+  }
+  return escaladas;
 }
 
 export function estadoBackups() {

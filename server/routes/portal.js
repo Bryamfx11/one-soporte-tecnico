@@ -1,7 +1,7 @@
 import express from 'express';
 import { randomInt } from 'node:crypto';
 import { db } from '../db.js';
-import { validatePortalReporte, validationMiddleware } from '../validate.js';
+import { validatePortalReporte, validateCalificacion, validationMiddleware } from '../validate.js';
 import { notifyDataChange } from '../sse.js';
 import { enviarNotificacion } from '../notify.js';
 
@@ -92,10 +92,11 @@ portalRouter.get('/incidencias/:ticket', (req, res) => {
 
   const row = db.prepare(`
     SELECT i.numero_ticket AS numero_ticket, i.estado, i.prioridad, i.creada_en, i.resuelta_en, i.solucion_aplicada,
-           t.nombre AS tipo_falla, tec.nombre AS tecnico
+           t.nombre AS tipo_falla, tec.nombre AS tecnico, c.valor AS calificacion_valor, c.comentario AS calificacion_comentario
     FROM incidencias i
     JOIN tipos_falla t ON t.id = i.tipo_falla_id
     LEFT JOIN tecnicos tec ON tec.id = i.tecnico_id
+    LEFT JOIN calificaciones c ON c.incidencia_id = i.id
     WHERE i.id = ?
   `).get(inc.id);
 
@@ -108,6 +109,36 @@ portalRouter.get('/incidencias/:ticket', (req, res) => {
     creada_en: row.creada_en,
     resuelta_en: row.resuelta_en,
     solucion_aplicada: row.solucion_aplicada,
-    tiempo_ms: row.resuelta_en && row.creada_en ? row.resuelta_en - row.creada_en : null
+    tiempo_ms: row.resuelta_en && row.creada_en ? row.resuelta_en - row.creada_en : null,
+    calificacion: row.calificacion_valor != null ? { valor: row.calificacion_valor, comentario: row.calificacion_comentario } : null
   });
+});
+
+// Valoración del servicio (CSAT) de una incidencia resuelta, por ticket + clave.
+portalRouter.post('/calificar', validationMiddleware(validateCalificacion), (req, res) => {
+  const ticket = String(req.body.ticket ?? '').trim().toUpperCase();
+  const clave = String(req.body.clave ?? '').trim();
+
+  if (!/^ONE-\d{4,}$/.test(ticket) || !/^\d{6}$/.test(clave)) {
+    return res.status(404).json({ error: 'No se encontró la incidencia' });
+  }
+
+  const inc = db.prepare('SELECT id, clave_seguimiento, estado FROM incidencias WHERE numero_ticket = ?').get(ticket);
+  if (!inc || !inc.clave_seguimiento || inc.clave_seguimiento !== clave) {
+    return res.status(404).json({ error: 'No se encontró la incidencia' });
+  }
+  if (inc.estado !== 'resuelta') {
+    return res.status(409).json({ error: 'Solo se puede valorar un caso ya resuelto' });
+  }
+
+  const existente = db.prepare('SELECT valor FROM calificaciones WHERE incidencia_id = ?').get(inc.id);
+  if (existente) {
+    return res.status(409).json({ error: 'Este caso ya fue calificado', valor: existente.valor });
+  }
+
+  const valor = Number(req.body.valor);
+  const comentario = typeof req.body.comentario === 'string' ? req.body.comentario.trim().slice(0, 500) : '';
+  db.prepare('INSERT INTO calificaciones (incidencia_id, valor, comentario, creada_en) VALUES (?, ?, ?, ?)')
+    .run(inc.id, valor, comentario, Date.now());
+  res.status(201).json({ ok: true, valor, comentario });
 });

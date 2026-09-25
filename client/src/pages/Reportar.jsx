@@ -1,10 +1,32 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ClipboardList, Search, TicketCheck } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ClipboardList, Search, TicketCheck, Star, Send } from 'lucide-react';
 import { api } from '../api.js';
 import { ESTADOS, PRIORIDADES, ESTADO_COLOR, fmtFecha, fmtTiempo } from '../utils.js';
 
+function Estrellas({ valor, onChange, disabled }) {
+  return (
+    <div className="calif-estrellas" role="radiogroup" aria-label="Valoración del servicio">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          role="radio"
+          aria-checked={valor === n}
+          aria-label={`${n} ${n === 1 ? 'estrella' : 'estrellas'}`}
+          className={`calif-estrella ${n <= valor ? 'on' : ''}`}
+          disabled={disabled}
+          onClick={() => onChange?.(n)}
+        >
+          <Star size={20} fill={n <= valor ? '#f59e0b' : 'none'} color="#f59e0b" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function Reportar() {
+  const [searchParams] = useSearchParams();
   const [tipos, setTipos] = useState([]);
   const [reporte, setReporte] = useState({ nombre: '', telefono: '', email: '', direccion: '', barrio: '', tipo_falla_id: '', sintomas: '', descripcion: '', empresa: '' });
   const [enviando, setEnviando] = useState(false);
@@ -15,6 +37,27 @@ export default function Reportar() {
   const [buscando, setBuscando] = useState(false);
   const [errorBusca, setErrorBusca] = useState('');
   const [consulta, setConsulta] = useState(null);
+
+  const [calif, setCalif] = useState({ valor: 0, comentario: '' });
+  const [calificando, setCalificando] = useState(false);
+  const [errorCalif, setErrorCalif] = useState('');
+  const [calificada, setCalificada] = useState(false);
+
+  // Enlace directo desde el correo de cierre: ?ticket=&clave= precarga la consulta.
+  useEffect(() => {
+    const ticket = searchParams.get('ticket') ?? '';
+    const clave = searchParams.get('clave') ?? '';
+    if (ticket && clave) setBusca({ ticket, clave });
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!searchParams.get('ticket') || !searchParams.get('clave')) return;
+    setBuscando(true);
+    api.get(`/portal/incidencias/${encodeURIComponent(searchParams.get('ticket'))}?clave=${encodeURIComponent(searchParams.get('clave'))}`)
+      .then((res) => setConsulta(res))
+      .catch((err) => setErrorBusca(err.message))
+      .finally(() => setBuscando(false));
+  }, [searchParams]);
 
   useEffect(() => {
     api.get('/portal/tipos').then(setTipos).catch(() => setTipos([]));
@@ -48,6 +91,8 @@ export default function Reportar() {
     e.preventDefault();
     setErrorBusca('');
     setConsulta(null);
+    setCalificada(false);
+    setCalif({ valor: 0, comentario: '' });
     const ticket = busca.ticket.trim().toUpperCase();
     const clave = busca.clave.trim();
     if (!ticket || !clave) {
@@ -62,6 +107,30 @@ export default function Reportar() {
       setErrorBusca(err.message);
     } finally {
       setBuscando(false);
+    }
+  }
+
+  async function enviarCalificacion(e) {
+    e.preventDefault();
+    if (calif.valor < 1) {
+      setErrorCalif('Seleccione una valoración de 1 a 5 estrellas.');
+      return;
+    }
+    setCalificando(true);
+    setErrorCalif('');
+    try {
+      const res = await api.post('/portal/calificar', {
+        ticket: busca.ticket.trim().toUpperCase(),
+        clave: busca.clave.trim(),
+        valor: calif.valor,
+        comentario: calif.comentario.trim()
+      });
+      setCalificada(true);
+      setConsulta((c) => ({ ...c, calificacion: { valor: res.valor, comentario: res.comentario } }));
+    } catch (err) {
+      setErrorCalif(err.message);
+    } finally {
+      setCalificando(false);
     }
   }
 
@@ -178,6 +247,30 @@ export default function Reportar() {
                     </>
                   )}
                 </dl>
+
+                {consulta.estado === 'resuelta' && (
+                  consulta.calificacion ? (
+                    <div className="calif-box" role="status">
+                      <h4>Gracias por su valoración</h4>
+                      <Estrellas valor={consulta.calificacion.valor} disabled />
+                      {consulta.calificacion.comentario && <p className="soft">{consulta.calificacion.comentario}</p>}
+                    </div>
+                  ) : (
+                    <form className="calif-box" onSubmit={enviarCalificacion}>
+                      <h4>¿Cómo fue la atención recibida?</h4>
+                      <Estrellas valor={calif.valor} onChange={(v) => { setCalif((c) => ({ ...c, valor: v })); setErrorCalif(''); }} />
+                      <label>
+                        <span>Comentario (opcional)</span>
+                        <textarea rows={2} maxLength={500} value={calif.comentario} onChange={(e) => setCalif((c) => ({ ...c, comentario: e.target.value }))} placeholder="Cuéntenos su experiencia…" />
+                      </label>
+                      {errorCalif && <div className="alert-error" role="alert">{errorCalif}</div>}
+                      {calificada && <div className="alert-ok" role="status">Valoración enviada. ¡Gracias por ayudarnos a mejorar!</div>}
+                      <button type="submit" className="btn btn-primary btn-block" disabled={calificando}>
+                        <Send size={14} /> {calificando ? 'Enviando…' : 'Enviar valoración'}
+                      </button>
+                    </form>
+                  )
+                )}
               </div>
             )}
           </form>

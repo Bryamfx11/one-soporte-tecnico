@@ -5,6 +5,9 @@ import { api, apiGetEstatico, useApi } from '../api.js';
 import { SkeletonTable, Empty } from '../components/ui.jsx';
 import { ESTADOS, ESTADO_COLOR, PRIORIDADES, PRIORIDAD_COLOR, fmtFecha, fmtTiempo } from '../utils.js';
 
+const SLA_LABEL = { ok: 'A tiempo', proximo: 'Por vencer', vencido: 'Vencido' };
+const SLA_COLOR = { ok: '#10b981', proximo: '#f59e0b', vencido: '#ef4444' };
+
 export default function Incidencias() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,6 +129,7 @@ export default function Incidencias() {
                 <th>Tipo de falla</th>
                 <th>Prioridad</th>
                 <th>Estado</th>
+                <th>SLA</th>
                 <th>Técnico</th>
                 <th>Creada</th>
                 <th>Tiempo</th>
@@ -153,6 +157,17 @@ export default function Incidencias() {
                   <td><span className="tipo-cell"><Wifi size={14} /> {i.tipo_falla}</span></td>
                   <td><span className="badge" style={{ color: PRIORIDAD_COLOR[i.prioridad], background: PRIORIDAD_COLOR[i.prioridad] + '1a' }}>{PRIORIDADES[i.prioridad]}</span></td>
                   <td><span className="badge" style={{ color: ESTADO_COLOR[i.estado], background: ESTADO_COLOR[i.estado] + '1a' }}>{ESTADOS[i.estado]}</span></td>
+                  <td>
+                    {i.sla ? (
+                      <span
+                        className="badge"
+                        style={{ color: SLA_COLOR[i.sla.estado], background: SLA_COLOR[i.sla.estado] + '1a' }}
+                        title={`Meta ${i.sla.meta_horas} h`}
+                      >
+                        {SLA_LABEL[i.sla.estado]}
+                      </span>
+                    ) : '—'}
+                  </td>
                   <td>{i.tecnico || '—'}</td>
                   <td>{fmtFecha(i.creada_en)}</td>
                   <td>{fmtTiempo(i.tiempo_ms)}</td>

@@ -16,10 +16,13 @@ export const ACCIONES_AUDITORIA = {
   usuario_desactivado: 'Usuario desactivado',
   usuario_activado: 'Usuario activado',
   config_notificaciones: 'Config. notificaciones',
+  config_operacion: 'Config. operativa (SLA/escalamiento)',
   login_exitoso: 'Inicio de sesión',
   login_fallido: 'Intento de acceso fallido',
   tecnico_asignado: 'Técnico asignado',
   nota_creada: 'Nota interna creada',
+  solucion_guardada: 'Solución guardada en la base',
+  escalamiento_automatico: 'Escalamiento automático',
   twofa_activada: '2FA activada',
   twofa_desactivada: '2FA desactivada'
 };

@@ -157,7 +157,7 @@ a.brand, a.brand:visited { display: flex; color: inherit; text-decoration: none;
 .grid.two { grid-template-columns: 1fr 1fr; }
 .grid.three { grid-template-columns: repeat(3, 1fr); }
 .grid.four { grid-template-columns: repeat(4, 1fr); }
-.stats { grid-template-columns: repeat(5, 1fr); }
+.stats { grid-template-columns: repeat(6, 1fr); }
 
 /* ---------- Cards ---------- */
 .card {
@@ -395,6 +395,22 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger-text);
   border-radius: 8px; padding: 12px 14px;
 }
+.alert-ok {
+  background: #10b9811a; border: 1px solid #10b98155; color: #059669;
+  border-radius: 8px; padding: 12px 14px;
+}
+.calif-box { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.calif-box h4 { margin: 0 0 8px; }
+.calif-estrellas { display: flex; gap: 4px; margin-bottom: 10px; }
+.calif-estrella {
+  background: none; border: none; padding: 2px; cursor: pointer; line-height: 0;
+}
+.calif-estrella:disabled { cursor: default; }
+.sol-detalle { display: block; }
+.sol-detalle summary { cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.sol-titulo { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sol-titulo strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sol-contenido { margin: 10px 0 4px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; white-space: pre-wrap; }
 .not-found { text-align: center; padding: 60px 20px; }
 .not-found h1 { font-size: 60px; margin: 0; color: var(--primary); }
 

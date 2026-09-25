@@ -4,7 +4,7 @@ import { requireAdmin } from '../auth.js';
 import {
   validateIdParam, validateTipoFallaCreate, validateTipoFallaUpdate,
   validateConsultaCreate, validateConsultaUpdate, validateCausaRaizCreate,
-  validateCausaRaizUpdate, validationMiddleware
+  validateCausaRaizUpdate, validateSolucion, validationMiddleware
 } from '../validate.js';
 import { notifyDataChange } from '../sse.js';
 
@@ -21,6 +21,55 @@ function validateTipoId(req, res, next) {
   if (errors.length) return res.status(400).json({ error: 'ID de tipo de falla inválido' });
   next();
 }
+
+// --- Base de conocimiento viva: soluciones guardadas desde casos resueltos ---
+// Debe ir antes de get('/:tipoId') para no colisionar con las rutas de tipo.
+
+function escaparLike(str) {
+  return str.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+checklistsRouter.get('/soluciones', (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 200) : '';
+  let where = '';
+  const params = [];
+  if (q) {
+    where = "WHERE (s.titulo LIKE ? ESCAPE '\\' OR s.contenido LIKE ? ESCAPE '\\' OR s.usuario LIKE ? ESCAPE '\\' OR t.nombre LIKE ? ESCAPE '\\')";
+    const like = `%${escaparLike(q)}%`;
+    params.push(like, like, like, like);
+  }
+  const soluciones = db.prepare(`
+    SELECT s.id, s.tipo_falla_id, s.titulo, s.contenido, s.usuario, s.creada_en, t.nombre AS tipo_falla
+    FROM soluciones s JOIN tipos_falla t ON t.id = s.tipo_falla_id
+    ${where}
+    ORDER BY s.creada_en DESC, s.id DESC
+  `).all(...params);
+  res.json({ items: soluciones, total: soluciones.length });
+});
+
+checklistsRouter.post('/soluciones', validationMiddleware(validateSolucion), (req, res) => {
+  const tipo = db.prepare('SELECT 1 FROM tipos_falla WHERE id = ?').get(Number(req.body.tipo_falla_id));
+  if (!tipo) return res.status(400).json({ error: 'tipo_falla_id no existe' });
+
+  const r = db.prepare('INSERT INTO soluciones (tipo_falla_id, titulo, contenido, usuario, creada_en) VALUES (?, ?, ?, ?, ?)')
+    .run(Number(req.body.tipo_falla_id), req.body.titulo.trim(), req.body.contenido.trim(), req.user.nombre, Date.now());
+  db.prepare('INSERT INTO actividad (incidencia_id, usuario, accion, detalle, creada_en) VALUES (?, ?, ?, ?, ?)')
+    .run(null, req.user.nombre, 'solucion_guardada', `Solución guardada en la base: ${req.body.titulo.trim().slice(0, 120)}`, Date.now());
+  notifyDataChange();
+  const solucion = db.prepare(`
+    SELECT s.id, s.tipo_falla_id, s.titulo, s.contenido, s.usuario, s.creada_en, t.nombre AS tipo_falla
+    FROM soluciones s JOIN tipos_falla t ON t.id = s.tipo_falla_id WHERE s.id = ?
+  `).get(Number(r.lastInsertRowid));
+  res.status(201).json(solucion);
+});
+
+checklistsRouter.delete('/soluciones/:id', requireAdmin, validateId, (req, res) => {
+  const s = db.prepare('SELECT * FROM soluciones WHERE id = ?').get(Number(req.params.id));
+  if (!s) return res.status(404).json({ error: 'Solución no encontrada' });
+  db.prepare('DELETE FROM soluciones WHERE id = ?').run(s.id);
+  notifyDataChange();
+  res.json({ ok: true });
+});
 
 // Causas raíz disponibles (debe ir antes de /:tipoId)
 checklistsRouter.get('/causas-raiz', (req, res) => {

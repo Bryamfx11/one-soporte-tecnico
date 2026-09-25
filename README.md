@@ -53,8 +53,12 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
   - Referencia esperada por cada paso
   - Registro de causa raíz (Diagrama de Ishikawa)
 - **Base de conocimiento**: Protocolos de diagnóstico consultables para capacitar nuevo personal
+- **Base de conocimiento viva**: al cerrar un caso resuelto se puede **guardar la solución** (título + procedimiento) en una biblioteca buscable; consultable por todo el equipo con filtro de texto y eliminable por admins (se audita como `solucion_guardada`)
+- **SLAs por prioridad**: metas de atención configurables por admin (horas por prioridad alta/media/baja) con **semáforo** en el listado de incidencias (A tiempo / Por vencer / Vencido)
+- **Escalamiento automático**: los casos abiertos sin actividad durante el umbral configurado (`escalamiento_horas`) se **escalan automáticamente**: se audita (`escalamiento_automatico`) y se alerta por correo a los admins; un caso no vuelve a escalar hasta superar de nuevo el umbral
+- **Satisfacción del cliente (CSAT)**: el portal público permite **valorar 1–5 estrellas** los casos resueltos (una única vez por ticket + clave); el promedio aparece en el dashboard y se expone en `/api/metrics/dashboard`
 - **Catálogos por admin**: tipos de falla con sus consultas, causas raíz y técnicos se administran desde la aplicación (CRUD completo con protección de borrado)
-- **Portal público del cliente** (`/reportar`, sin autenticación): reporta una falla y recibe `numero_ticket` + clave de seguimiento de 6 dígitos; el seguimiento devuelve solo estado/tipo/prioridad/técnico/fechas/solución (nunca datos de contacto) y cuenta con honeypot anti-spam
+- **Portal público del cliente** (`/reportar`, sin autenticación): reporta una falla y recibe `numero_ticket` + clave de seguimiento de 6 dígitos; el seguimiento devuelve solo estado/tipo/prioridad/técnico/fechas/solución/calificación (nunca datos de contacto) y cuenta con honeypot anti-spam; el enlace "Valorar atención" del correo de cierre lleva directo a la consulta con el rating
 - **Notificaciones por correo**: SMTP configurable desde Ajustes (solo admin) con correo de prueba e historial de envíos; el cliente recibe avisos al registrar un reporte, al cambiar el estado del caso y al finalizarse
 - **Adjuntos de fotos**: fotografías de la visita (1 equipo ONT por caso) subidas y servidas con autenticación, con miniaturas en el detalle y limpieza automática al eliminar el caso
 - **Indicadores de Operación**: Métricas del servicio alineadas a las metas de resolución, tiempos de atención, carga por técnico y tendencia
@@ -62,7 +66,7 @@ y los indicadores de desempeño del servicio, con acceso por roles (administrado
 - **Backups automáticos**: snapshot diario `VACUUM INTO` (hora configurable, retención `BACKUP_KEEP`) activo en producción, con **copia espejo opcional en un directorio externo** (`BACKUP_EXTERNO_DIR`) y estado del último respaldo visible en `/api/health`
 - **Restauración verificada**: `npm run restore -- <backup>` valida la integridad del snapshot antes de aplicarlo y guarda automáticamente un `pre-restore-*` del estado actual
 - **Recuperación de acceso (admin)**: `npm run reset-password -- <email> <contraseña>` restablece la contraseña desde el servidor con registro en auditoría; `/api/health` reporta `admins_activos` para detectar el caso de un único administrador
-- **Alertas operativas**: ante un **fallo o atraso del backup automático** se envía un correo al `alerta_email` configurado (o, si no, a los correos de admins activos) usando el mismo SMTP de las notificaciones
+- **Alertas operativas**: ante un **fallo o atraso del backup automático** o un **escalamiento automático de casos abandonados** se envía un correo al `alerta_email` configurado (o, si no, a los correos de admins activos) usando el mismo SMTP de las notificaciones
 - **Resumen operativo diario**: cada día a las `RESUMEN_HOUR` (06:00 por defecto) se envía un correo con pendientes, nuevas/resueltas de hoy, estado de backups y admins activos; se omite si el SMTP o los destinatarios no están configurados
 - **Exportación con confirmación**: al descargar reportes CSV (Dashboard e Indicadores) se muestra una notificación de éxito
 - **Estados vacíos**: las gráficas muestran un mensaje claro cuando aún no hay datos, en lugar de un lienzo en blanco
@@ -232,40 +236,42 @@ one-soporte-tecnico/
 │   ├── auth.js                          # JWT y middleware de autenticación
 │   ├── security.js                      # Rate limiting, cabeceras de seguridad y CORS
 │   ├── validate.js                      # Validación de peticiones
-│   ├── migrations.js                     # Migraciones versionadas de esquema (v1..v6)
+│   ├── sla.js                           # Cálculo de metas (SLA) por prioridad
+│   ├── migrations.js                     # Migraciones versionadas de esquema (v1..v8)
 │   ├── seed.js                           # Datos de ejemplo (checklists FTTH, causas)
 │   ├── backup.js                         # Respaldos VACUUM INTO (crear/podar + copia externa)
-│   ├── monitor.js                        # Backup automático diario + resumen diario + estado + alertas (AUTO_BACKUP_HOUR/RESUMEN_HOUR)
-│   ├── notify.js                         # Envío de correos (fire-and-forget, historial)
+│   ├── monitor.js                        # Backup automático diario + resumen diario + estado + alertas (AUTO_BACKUP_HOUR/RESUMEN_HOUR) + escalamiento automático
+│   ├── notify.js                         # Envío de correos (fire-and-forget, historial, CTA en cierres)
 │   ├── audit.js                          # Registro de auditoría global (incidencias + sistema)
 │   ├── restore.js                        # Restauración verificada (npm run restore)
 │   ├── reset-password.js                 # Recuperación de acceso admin (npm run reset-password)
 │   ├── totp.js                           # TOTP (RFC 6238) para 2FA, con node:crypto
 │   ├── routes/
 │   │   ├── auth.js                      # Login (2 pasos con 2FA), registro, perfil y endpoints 2FA
-│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado + auditoría + adjuntos + notas internas
-│   │   ├── checklists.js                # Base de conocimiento y causas raíz
-│   │   ├── metrics.js                   # Indicadores + comparativo mensual
-│   │   ├── portal.js                    # Portal público (/reportar, ticket + clave)
+│   │   ├── incidents.js                 # CRUD incidencias + diagnóstico guiado + auditoría + adjuntos + notas internas + SLA
+│   │   ├── checklists.js                # Base de conocimiento, causas raíz y soluciones guardadas
+│   │   ├── metrics.js                   # Indicadores + comparativo mensual + satisfacción CSAT
+│   │   ├── ajustes.js                   # Metas de servicio (SLA) y escalamiento (admin)
+│   │   ├── portal.js                    # Portal público (/reportar, ticket + clave, calificación)
 │   │   ├── notifications.js             # Config SMTP, prueba e historial (admin)
 │   │   ├── auditoria.js                 # Historial de auditoría global (admin; búsqueda, filtro y CSV)
 │   │   ├── tecnicos.js
 │   │   └── usuarios.js                  # Alta, edición, listado y activación de cuentas (admin)
-│   └── test/                            # Pruebas de API, validación, backups, migraciones, restore, 2FA y correos
+│   └── test/                            # Pruebas de API, validación, backups, migraciones, restore, 2FA, correos y features
 └── client/                              # React (Vite)
     └── src/
         ├── pages/
         │   ├── Login.jsx                # Inicio de sesión (+ segundo paso 2FA)
         │   ├── Dashboard.jsx            # KPIs y gráficas
         │   ├── Incidencias.jsx          # Lista de incidencias con filtros
-        │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico + adjuntos + notas internas
+        │   ├── IncidenciaDetail.jsx     # Detalle + wizard de diagnóstico + adjuntos + notas internas + guardar solución
         │   ├── NuevaIncidencia.jsx      # Formulario de creación
-        │   ├── Conocimiento.jsx         # Base de conocimiento (admin CRUD)
+        │   ├── Conocimiento.jsx         # Base de conocimiento + soluciones guardadas (admin CRUD)
         │   ├── Tecnicos.jsx             # Gestión de técnicos (admin)
         │   ├── Indicadores.jsx          # Métricas del servicio
         │   ├── Comparativo.jsx          # Reporte mensual mes vs mes
-        │   ├── Reportar.jsx             # Portal público del cliente
-        │   ├── Ajustes.jsx              # Tema, metas, correos SMTP y 2FA
+        │   ├── Reportar.jsx             # Portal público del cliente (seguimiento + calificación)
+        │   ├── Ajustes.jsx              # Tema, metas de servicio (SLA), correos SMTP y 2FA
         │   ├── Usuarios.jsx             # Gestión de cuentas (solo admin)
         │   ├── Auditoria.jsx            # Historial global de auditoría con búsqueda y CSV (solo admin)
         │   └── NotFound.jsx             # Error 404

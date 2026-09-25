@@ -11,6 +11,7 @@ import {
 import { requireAdmin } from '../auth.js';
 import { notifyDataChange } from '../sse.js';
 import { enviarNotificacion } from '../notify.js';
+import { calcularSla, slaDeIncidencias } from '../sla.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -204,7 +205,7 @@ incidentsRouter.get('/', (req, res) => {
   const offset = Number.isInteger(offsetRaw) && offsetRaw > 0 ? offsetRaw : 0;
 
   const rows = db.prepare(`${base} ORDER BY i.creada_en DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
-  res.json({ items: rows.map(mapInc), total, limit, offset });
+  res.json({ items: slaDeIncidencias(rows).map(mapInc), total, limit, offset });
 });
 
 incidentsRouter.get('/:id', validateId, (req, res) => {
@@ -214,7 +215,7 @@ incidentsRouter.get('/:id', validateId, (req, res) => {
   const respuestas = db.prepare('SELECT * FROM respuestas_diagnostico WHERE incidencia_id = ? ORDER BY registrada_en').all(inc.id);
   const actividad = db.prepare('SELECT * FROM actividad WHERE incidencia_id = ? ORDER BY creada_en DESC').all(inc.id);
   const adjuntos = db.prepare(`${SELECT_ADJUNTO} WHERE incidencia_id = ? ORDER BY creada_en DESC`).all(inc.id);
-  res.json({ ...mapInc(inc), respuestas, actividad, adjuntos });
+  res.json({ ...mapInc(inc), sla: calcularSla(inc), respuestas, actividad, adjuntos });
 });
 
 incidentsRouter.post('/', validationMiddleware(validateIncidentCreate), (req, res) => {

@@ -19,7 +19,7 @@ test('rechaza credenciales incorrectas', async ({ page }) => {
 test('admin inicia sesión y ve el dashboard', async ({ page }) => {
   await login(page);
   await expect(page.getByText('ONE Telecomunicaciones S.A.S.')).toBeVisible();
-  await expect(page.locator('.stats .stat')).toHaveCount(5);
+  await expect(page.locator('.stats .stat')).toHaveCount(6);
 });
 
 test('técnico inicia sesión', async ({ page }) => {

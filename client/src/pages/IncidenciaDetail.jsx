@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   User, MapPin, Phone, Mail, Play, Save, X, Image, StickyNote,
-  ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2, Upload
+  ChevronLeft, ChevronRight, CheckCircle2, Wrench, Trash2, Upload, BookOpen
 } from 'lucide-react';
 import { api, apiGetEstatico, getUser, useApi } from '../api.js';
 import { getToken } from '../api.js';
@@ -45,6 +45,9 @@ export default function IncidenciaDetail() {
   const fileInputRef = useRef(null);
   const [notaText, setNotaText] = useState('');
   const [guardandoNota, setGuardandoNota] = useState(false);
+  const [solucionOpen, setSolucionOpen] = useState(false);
+  const [solucionForm, setSolucionForm] = useState({ titulo: '', contenido: '' });
+  const [savingSolucion, setSavingSolucion] = useState(false);
 
   useDirtyGuard(wizardOpen);
 
@@ -178,6 +181,24 @@ export default function IncidenciaDetail() {
     }
   }
 
+  async function guardarSolucion(e) {
+    e.preventDefault();
+    setSavingSolucion(true);
+    try {
+      await api.post('/checklists/soluciones', {
+        tipo_falla_id: inc.tipo_falla_id,
+        titulo: solucionForm.titulo.trim(),
+        contenido: solucionForm.contenido.trim()
+      });
+      setSolucionOpen(false);
+      showToast('success', 'Solución guardada en la base de conocimiento.');
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setSavingSolucion(false);
+    }
+  }
+
   return (
     <div className="page">
       <header className="page-head">
@@ -232,12 +253,31 @@ export default function IncidenciaDetail() {
             <div><span className="label">Técnico</span>{inc.tecnico || '—'}</div>
           </div>
 
-          {inc.estado === 'resuelta' || inc.estado === 'escalada' ? (
+          {inc.estado === 'resuelta' ? (
             <div className="result-box">
               <h4>Resultado</h4>
               <p><strong>Causa raíz:</strong> {inc.causa_raiz_cat || '—'}</p>
               <p><strong>Solución aplicada:</strong> {inc.solucion_aplicada || '—'}</p>
-              <p><strong>Conclusión:</strong> {inc.estado === 'resuelta' ? 'Caso resuelto con el protocolo estandarizado' : 'Caso escalado a nivel superior por no resolverse en sitio'}</p>
+              <p><strong>Conclusión:</strong> Caso resuelto con el protocolo estandarizado</p>
+              <button
+                className="btn btn-secondary mt"
+                onClick={() => {
+                  setSolucionForm({
+                    titulo: `${inc.tipo_falla}${inc.barrio ? ` · ${inc.barrio}` : ''}`,
+                    contenido: inc.solucion_aplicada || ''
+                  });
+                  setSolucionOpen(true);
+                }}
+              >
+                <BookOpen size={16} /> Guardar solución en la base
+              </button>
+            </div>
+          ) : inc.estado === 'escalada' ? (
+            <div className="result-box">
+              <h4>Resultado</h4>
+              <p><strong>Causa raíz:</strong> {inc.causa_raiz_cat || '—'}</p>
+              <p><strong>Solución aplicada:</strong> {inc.solucion_aplicada || '—'}</p>
+              <p><strong>Conclusión:</strong> Caso escalado a nivel superior por no resolverse en sitio</p>
             </div>
           ) : (
             <button className="btn btn-primary btn-block mt" onClick={() => setWizardOpen(true)}>
@@ -387,6 +427,38 @@ export default function IncidenciaDetail() {
           onConfirm={confirmDelete}
           busy={deleting}
         />
+      )}
+
+      {solucionOpen && (
+        <Modal title="Guardar solución en la base de conocimiento" onClose={() => setSolucionOpen(false)}>
+          <form onSubmit={guardarSolucion} className="solucion-form">
+            <label>
+              <span>Título*</span>
+              <input
+                value={solucionForm.titulo}
+                onChange={(e) => setSolucionForm((f) => ({ ...f, titulo: e.target.value }))}
+                maxLength={200}
+                placeholder="Título breve de la solución"
+              />
+            </label>
+            <label>
+              <span>Contenido del procedimiento*</span>
+              <textarea
+                rows={5}
+                value={solucionForm.contenido}
+                onChange={(e) => setSolucionForm((f) => ({ ...f, contenido: e.target.value }))}
+                maxLength={2000}
+                placeholder="Pasos, valores de referencia y verificación del arreglo…"
+              />
+            </label>
+            <div className="field-row">
+              <button type="button" className="btn btn-ghost" onClick={() => setSolucionOpen(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={savingSolucion || !solucionForm.titulo.trim() || !solucionForm.contenido.trim()}>
+                <BookOpen size={16} /> {savingSolucion ? 'Guardando…' : 'Guardar solución'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

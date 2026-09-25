@@ -146,6 +146,8 @@ metricsRouter.get('/dashboard', (req, res) => {
     GROUP BY i.tecnico_id ORDER BY total DESC
   `).all();
 
+  const satisfaccion = db.prepare('SELECT AVG(valor) AS promedio, COUNT(*) AS total FROM calificaciones').get();
+
   // Incidencias de los últimos 30 días calendario (zona horaria de Bogotá)
   const now = Date.now();
   const hoyInicioLocal = Math.floor((now + CO_OFFSET_MS) / DIA_MS) * DIA_MS;
@@ -179,6 +181,8 @@ metricsRouter.get('/dashboard', (req, res) => {
     tiempo_por_tipo: tiempoPorTipo,
     top_causas: topCausas,
     por_tecnico: porTecnico,
+    satisfaccion_promedio: satisfaccion.total > 0 ? Number(satisfaccion.promedio.toFixed(2)) : null,
+    satisfacciones: satisfaccion.total,
     por_dia: dias
   });
 });

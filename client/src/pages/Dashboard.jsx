@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, Clock, CheckCircle2, ArrowUpCircle, ListTodo, Download, Printer, RefreshCw
+  Activity, Clock, CheckCircle2, ArrowUpCircle, ListTodo, Download, Printer, RefreshCw, Star
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -58,7 +58,8 @@ export default function Dashboard() {
       ...tiempoPorTipo.map((t) => ['Tiempo promedio', t.nombre, fmtTiempo(t.ms)]),
       ...topCausas.map((c) => ['Causa raíz', c.categoria, String(c.c)]),
       ...porTecnico.map((t) => ['Técnico', t.nombre, `${t.resueltas}/${t.total}`]),
-      ...porDia.map((d) => ['Día', d.dia, String(d.c)])
+      ...porDia.map((d) => ['Día', d.dia, String(d.c)]),
+      ...(data.satisfacciones ? [['Satisfacción', 'Promedio', `${data.satisfaccion_promedio}/5 (${data.satisfacciones})`]] : [])
     ];
     downloadCSV(`dashboard-hoy-${new Date().toISOString().slice(0, 10)}.csv`,
       ['Dimensión', 'Etiqueta', 'Valor'], rows);
@@ -88,6 +89,7 @@ export default function Dashboard() {
         <StatCard icon={CheckCircle2} label="Resueltas" value={data.resueltas ?? 0} tone="green" />
         <StatCard icon={ArrowUpCircle} label="Escaladas" value={data.escaladas ?? 0} tone="red" />
         <StatCard icon={Activity} label="En diagnóstico / Nuevas" value={(data.en_diagnostico ?? 0) + (data.nueva ?? 0)} tone="amber" />
+        <StatCard icon={Star} label="Satisfacción del cliente" value={data.satisfaccion_promedio ? `${data.satisfaccion_promedio} / 5` : '—'} sub={`${data.satisfacciones ?? 0} valoraciones`} tone="slate" />
       </section>
 
       <section className="grid two">

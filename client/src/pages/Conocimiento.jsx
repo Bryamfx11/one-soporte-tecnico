@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { BookOpen, CheckCircle2, XCircle, Gauge, Pencil, Plus, Trash2, Settings2 } from 'lucide-react';
+import { BookOpen, CheckCircle2, XCircle, Gauge, Pencil, Plus, Trash2, Settings2, Search, Wrench } from 'lucide-react';
 import { api, getUser, useApi } from '../api.js';
 import { Skeleton, SkeletonText, Empty, Modal, ConfirmDialog } from '../components/ui.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { fmtFecha } from '../utils.js';
 
 const ICONOS = {
   'wifi-off': '📡',
@@ -103,6 +104,90 @@ function FormCausa({ inicial, onSubmit, onClose, busy }) {
         <label>Descripción *<textarea rows={2} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Cuándo se aplica esta causa" /></label>
       </form>
     </Modal>
+  );
+}
+
+function Soluciones({ esAdmin, showToast }) {
+  const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const { data, loading, reload } = useApi(
+    () => api.get(`/checklists/soluciones${debouncedQ ? `?q=${encodeURIComponent(debouncedQ)}` : ''}`),
+    [debouncedQ]
+  );
+  const [borrar, setBorrar] = useState(null);
+
+  function onQ(value) {
+    setQ(value);
+    clearTimeout(window.__solucionesDelay);
+    window.__solucionesDelay = setTimeout(() => setDebouncedQ(value.trim()), 350);
+  }
+
+  async function eliminar() {
+    setBusy(true);
+    try {
+      await api.del(`/checklists/soluciones/${borrar.id}`);
+      showToast('success', 'Solución eliminada.');
+      setBorrar(null);
+      reload();
+    } catch (err) {
+      showToast('error', err.message);
+      setBorrar(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="kb-header">
+        <div>
+          <h3><Wrench size={16} /> Soluciones de casos resueltos</h3>
+          <p>Procedimientos reales guardados al cerrar incidencias</p>
+        </div>
+        <div className="search" style={{ minWidth: 260 }}>
+          <Search size={16} />
+          <input
+            aria-label="Buscar soluciones"
+            placeholder="Buscar por título, procedimiento o tipo…"
+            value={q}
+            onChange={(e) => onQ(e.target.value)}
+          />
+        </div>
+      </div>
+      {loading ? <SkeletonText lines={3} /> : !data || data.items.length === 0 ? (
+        <p className="soft" style={{ marginTop: 12 }}>Sin soluciones registradas todavía. Guárdelas desde el detalle de una incidencia resuelta.</p>
+      ) : (
+        <ul className="info-list" style={{ marginTop: 12 }}>
+          {data.items.map((s) => (
+            <li key={s.id}>
+              <details className="sol-detalle">
+                <summary>
+                  <div className="sol-titulo">
+                    <strong>{s.titulo}</strong>
+                    <span className="mini-badge" style={{ color: '#2563eb', background: '#2563eb1a' }}>{s.tipo_falla}</span>
+                  </div>
+                  <span className="soft">{s.usuario} · {fmtFecha(s.creada_en)}</span>
+                </summary>
+                <p className="sol-contenido">{s.contenido}</p>
+              </details>
+              {esAdmin && (
+                <button className="icon-btn" title="Eliminar" onClick={() => setBorrar(s)}><Trash2 size={16} /></button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {borrar && (
+        <ConfirmDialog
+          title="Eliminar solución"
+          message={`¿Eliminar "${borrar.titulo}" de la base de conocimiento?`}
+          onCancel={() => setBorrar(null)}
+          onConfirm={eliminar}
+          busy={busy}
+        />
+      )}
+    </section>
   );
 }
 
@@ -336,6 +421,7 @@ export default function Conocimiento() {
               </button>
             )}
           </section>
+          <div style={{ marginTop: 16 }}><Soluciones esAdmin={esAdmin} showToast={showToast} /></div>
           {admin && <div style={{ marginTop: 16 }}><CausasAdmin showToast={showToast} /></div>}
         </>
       ) : (

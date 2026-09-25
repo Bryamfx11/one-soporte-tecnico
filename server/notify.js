@@ -8,7 +8,7 @@ export const ESTADOS_LABEL = {
   escalada: 'Escalada'
 };
 
-const CLAVES_CONFIG = ['notif_habilitada', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_from_name', 'alerta_email'];
+const CLAVES_CONFIG = ['notif_habilitada', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_from_name', 'alerta_email', 'url_publica'];
 
 export function leerConfigSmtp() {
   const filas = new Map();
@@ -24,6 +24,7 @@ export function leerConfigSmtp() {
   const from = (filas.get('smtp_from') ?? '').trim();
   const fromName = (filas.get('smtp_from_name') ?? '').trim();
   const alertaEmail = (filas.get('alerta_email') ?? '').trim();
+  const publicUrl = (filas.get('url_publica') ?? '').trim();
   return {
     habilitada,
     host,
@@ -32,6 +33,7 @@ export function leerConfigSmtp() {
     from,
     fromName,
     alertaEmail,
+    publicUrl,
     passConfigurada: pass !== '',
     configurado: habilitada && host !== '' && from !== ''
   };
@@ -68,6 +70,11 @@ export function validarConfigSmtp(body) {
       errors.push('alertaEmail debe ser un correo válido');
     }
   }
+  if (body.publicUrl !== undefined && body.publicUrl !== null && body.publicUrl !== '') {
+    if (typeof body.publicUrl !== 'string' || !/^https?:\/\/[^\s]+$/i.test(body.publicUrl.trim())) {
+      errors.push('url_publica debe comenzar con http(s):// y no contener espacios');
+    }
+  }
   return errors;
 }
 
@@ -83,6 +90,7 @@ export function guardarConfigSmtp(body) {
   upsert.run('smtp_from', String(body.from).trim());
   upsert.run('smtp_from_name', String(body.fromName ?? '').trim());
   upsert.run('alerta_email', String(body.alertaEmail ?? '').trim());
+  upsert.run('url_publica', String(body.publicUrl ?? '').trim());
 }
 
 export function registrarNotificacion({ incidenciaId, tipo, destinatario, asunto, estado, error = '' }) {
@@ -124,6 +132,20 @@ export function construirCorreo({ tipo, inc, clave }) {
 
   const filas = detalles.map(([k, v]) => `<tr><td style="padding:6px 0;color:#64748b;width:160px;">${k}</td><td style="padding:6px 0;font-weight:600;word-break:break-word;">${v}</td></tr>`).join('');
 
+  let cta = '';
+  if (tipo === 'cierre' && inc.estado === 'resuelta') {
+    const conf = leerConfigSmtp();
+    if (conf.publicUrl) {
+      const base = conf.publicUrl.replace(/\/+$/, '');
+      const url = `${base}/reportar?ticket=${encodeURIComponent(inc.numero_ticket)}&clave=${encodeURIComponent(inc.clave_seguimiento ?? '')}`;
+      cta = `
+        <p style="margin:20px 0 0;font-size:13px;">
+          ¿Cómo fue la atención recibida? Comparta su valoración en un minuto:<br />
+          <a href="${escaparHtml(url)}" style="color:#1e3a8a;font-weight:700;">Valorar atención (1 a 5 estrellas)</a>
+        </p>`;
+    }
+  }
+
   const html = `
   <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
     <div style="background:#1e3a8a;color:#fff;padding:16px 24px;">
@@ -135,6 +157,7 @@ export function construirCorreo({ tipo, inc, clave }) {
       <p style="margin:0 0 16px;">Le informamos sobre el estado de su caso:</p>
       <table style="font-size:13px;width:100%;border-collapse:collapse;">${filas}</table>
       <p style="margin:18px 0 0;font-size:12px;color:#64748b;">Si renovó o cambió su servicio mientras tanto y el caso ya no aplica, no es necesario que haga nada.</p>
+      ${cta}
     </div>
   </div>`;
 

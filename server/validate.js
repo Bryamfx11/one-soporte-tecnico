@@ -392,6 +392,26 @@ export function validateNota(body) {
   return errors;
 }
 
+export function validateSolucion(body) {
+  const errors = [];
+  if (!body.tipo_falla_id || !Number.isInteger(Number(body.tipo_falla_id)) || Number(body.tipo_falla_id) < 1) {
+    errors.push('tipo_falla_id es obligatorio y debe ser un número entero positivo');
+  }
+  campoTextoObligatorio(errors, body, 'titulo', 1, 200, 'titulo es obligatorio');
+  campoTextoObligatorio(errors, body, 'contenido', 1, 2000, 'contenido es obligatorio');
+  return errors;
+}
+
+export function validateCalificacion(body) {
+  const errors = [];
+  const valor = Number(body.valor);
+  if (!Number.isInteger(valor) || valor < 1 || valor > 5) {
+    errors.push('valor debe ser un entero entre 1 y 5');
+  }
+  campoTextoOpcional(errors, body, 'comentario', 500, 'comentario debe ser texto');
+  return errors;
+}
+
 export function validationMiddleware(validateFn) {
   return (req, res, next) => {
     // Nunca confiar en que el cuerpo vino como JSON: req.body puede ser undefined
