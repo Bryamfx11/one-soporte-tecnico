@@ -190,7 +190,9 @@ export default function Ajustes() {
       const saved = await api.put('/webhook/config', {
         habilitada: !!webhook.habilitada,
         url: webhook.url ?? '',
-        secret: webhook.secretNuevo ?? ''
+        secret: webhook.secretNuevo ?? '',
+        intentos: Number(webhook.intentos ?? 3),
+        retraso: Number(webhook.retraso ?? 1000)
       });
       setWebhook({ ...saved, secretNuevo: '' });
       showToast('success', 'Configuración del webhook guardada.');
@@ -414,9 +416,18 @@ export default function Ajustes() {
                 <input type="password" autoComplete="new-password" value={webhook.secretNuevo ?? ''} onChange={(e) => setWebhook((w) => ({ ...w, secretNuevo: e.target.value }))} placeholder={webhook.secretConfigurado ? '••••••••' : 'sin secreto'} />
               </label>
               <div className="field-row">
+                <label>Intentos
+                  <input type="number" min="1" max="6" step="1" value={webhook.intentos ?? 3} onChange={(e) => setWebhook((w) => ({ ...w, intentos: e.target.value }))} />
+                </label>
+                <label>Retraso base (ms)
+                  <input type="number" min="0" max="60000" step="100" value={webhook.retraso ?? 1000} onChange={(e) => setWebhook((w) => ({ ...w, retraso: e.target.value }))} />
+                </label>
+              </div>
+              <div className="field-row">
                 <button type="submit" className="btn btn-primary" disabled={savingWebhook}><Save size={16} /> {savingWebhook ? 'Guardando…' : 'Guardar webhook'}</button>
                 <button type="button" className="btn btn-secondary" disabled={probandoWebhook || !webhook.habilitada} onClick={probarWebhook}><Send size={16} /> {probandoWebhook ? 'Probando…' : 'Enviar prueba'}</button>
               </div>
+              <p className="soft">Ante una falla de red, el envío se reintenta hasta <strong>{webhook.intentos ?? 3}</strong> veces con retroceso exponencial (espera base <strong>{webhook.retraso ?? 1000} ms</strong> duplicándose), registrando cada intento en el historial.</p>
             </form>
           ) : (
             <p className="soft">Consultando la configuración del webhook…</p>

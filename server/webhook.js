@@ -7,8 +7,16 @@ import { registrarNotificacion } from './notify.js';
 // La configuración vive en la tabla `config` (webhook_url, webhook_secret, webhook_habilitada).
 // Nunca lanza: cada intento se registra en el historial de notificaciones.
 
-const CLAVES = ['webhook_url', 'webhook_secret', 'webhook_habilitada'];
+const CLAVES = ['webhook_url', 'webhook_secret', 'webhook_habilitada', 'webhook_intentos', 'webhook_retraso_ms'];
 const TIMEOUT_MS = 8000;
+const INTENTOS_DEFAULT = 3;
+const RETRASO_DEFAULT = 1000;
+const MAX_INTENTOS = 6;
+
+function clampInt(valor, minimo, maximo) {
+  const n = Number(valor);
+  return !Number.isInteger(n) ? minimo : Math.max(minimo, Math.min(maximo, n));
+}
 
 export function leerConfigWebhook() {
   const filas = new Map();
@@ -23,7 +31,9 @@ export function leerConfigWebhook() {
     habilitada,
     url,
     secretConfigurado: secret !== '',
-    configurado: habilitada && url !== ''
+    configurado: habilitada && url !== '',
+    intentos: clampInt(filas.get('webhook_intentos') ?? INTENTOS_DEFAULT, 1, MAX_INTENTOS),
+    retraso: clampInt(filas.get('webhook_retraso_ms') ?? RETRASO_DEFAULT, 0, 60000)
   };
 }
 
@@ -40,6 +50,12 @@ export function validarConfigWebhook(body) {
   if (body.secret !== undefined && body.secret !== null && typeof body.secret !== 'string') {
     errors.push('webhook secret debe ser texto');
   }
+  if (body.intentos !== undefined && body.intentos !== null && !(Number.isInteger(Number(body.intentos)) && Number(body.intentos) >= 1 && Number(body.intentos) <= MAX_INTENTOS)) {
+    errors.push(`webhook intentos debe ser un entero entre 1 y ${MAX_INTENTOS}`);
+  }
+  if (body.retraso !== undefined && body.retraso !== null && !(Number.isInteger(Number(body.retraso)) && Number(body.retraso) >= 0 && Number(body.retraso) <= 60000)) {
+    errors.push('webhook retraso debe ser un entero entre 0 y 60000 ms');
+  }
   return errors;
 }
 
@@ -52,17 +68,28 @@ export function guardarConfigWebhook(body) {
   } else if (typeof body.secret === 'string' && body.secret.trim() !== '') {
     upsert.run('webhook_secret', body.secret.trim());
   }
+  if (body.intentos !== undefined && body.intentos !== null) {
+    upsert.run('webhook_intentos', String(clampInt(body.intentos, 1, MAX_INTENTOS)));
+  }
+  if (body.retraso !== undefined && body.retraso !== null) {
+    upsert.run('webhook_retraso_ms', String(clampInt(body.retraso, 0, 60000)));
+  }
 }
 
 function firmar(raw, secret) {
   return crypto.createHmac('sha256', secret).update(raw).digest('hex');
 }
 
-// POST del payload al endpoint configurado. Devuelve true si el servidor respondió 2xx.
-export async function enviarWebhook({ evento, incidencia = null, usuario = null }) {
+// POST del payload al endpoint configurado con reintentos y backoff exponencial.
+// Cada intento se registra en el historial de notificaciones. Nunca lanza.
+// `intentos` (override) fuerza una cantidad de intentos (lo usa la prueba rápida).
+export async function enviarWebhook({ evento, incidencia = null, usuario = null, intentos: intentosOverride = null }) {
   try {
     const conf = leerConfigWebhook();
     if (!conf.configurado) return false;
+
+    const maxIntentos = intentosOverride === null ? conf.intentos : clampInt(intentosOverride, 1, MAX_INTENTOS);
+    const baseRetraso = conf.retraso;
 
     const payload = {
       evento,
@@ -86,31 +113,38 @@ export async function enviarWebhook({ evento, incidencia = null, usuario = null 
           }
         : null
     };
-    const raw = JSON.stringify(payload);
     const headers = { 'Content-Type': 'application/json', 'User-Agent': 'ONETec/1.0' };
     const filaSecret = db.prepare("SELECT valor FROM config WHERE clave = 'webhook_secret'").get();
-    if (filaSecret?.valor) headers['X-ONETec-Signature'] = firmar(raw, filaSecret.valor);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    try {
-      const res = await fetch(conf.url, { method: 'POST', headers, body: raw, signal: controller.signal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      registrarNotificacion({ incidenciaId: incidencia?.id ?? null, tipo: 'webhook', destinatario: conf.url.slice(0, 254), asunto: String(evento).slice(0, 300), estado: 'enviado' });
-      return true;
-    } catch (err) {
-      registrarNotificacion({
-        incidenciaId: incidencia?.id ?? null,
-        tipo: 'webhook',
-        destinatario: conf.url.slice(0, 254),
-        asunto: String(evento).slice(0, 300),
-        estado: 'error',
-        error: err?.name === 'AbortError' ? 'timeout (8 s)' : err.message
-      });
-      return false;
-    } finally {
-      clearTimeout(timer);
+    for (let i = 1; i <= maxIntentos; i++) {
+      const cuerpo = JSON.stringify({ ...payload, intento: i, intentos: maxIntentos });
+      const headersEnvio = { ...headers };
+      if (filaSecret?.valor) headersEnvio['X-ONETec-Signature'] = firmar(cuerpo, filaSecret.valor);
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(conf.url, { method: 'POST', headers: headersEnvio, body: cuerpo, signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        registrarNotificacion({ incidenciaId: incidencia?.id ?? null, tipo: 'webhook', destinatario: conf.url.slice(0, 254), asunto: `${evento} (intento ${i}/${maxIntentos})`.slice(0, 300), estado: 'enviado' });
+        return true;
+      } catch (err) {
+        registrarNotificacion({
+          incidenciaId: incidencia?.id ?? null,
+          tipo: 'webhook',
+          destinatario: conf.url.slice(0, 254),
+          asunto: `${evento} (intento ${i}/${maxIntentos})`.slice(0, 300),
+          estado: 'error',
+          error: err?.name === 'AbortError' ? `timeout (${TIMEOUT_MS / 1000} s)` : err.message
+        });
+        if (i < maxIntentos) {
+          await new Promise((resolve) => setTimeout(resolve, baseRetraso * 2 ** (i - 1)));
+        }
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    return false;
   } catch {
     return false;
   }

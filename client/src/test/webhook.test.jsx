@@ -32,7 +32,7 @@ describe('Webhook de salida en Ajustes', () => {
     vi.clearAllMocks();
     api.get.mockImplementation((url) => {
       const data = {
-        '/webhook/config': { habilitada: false, url: '', secretConfigurado: false, configurado: false },
+        '/webhook/config': { habilitada: false, url: '', secretConfigurado: false, configurado: false, intentos: 3, retraso: 1000 },
         '/notifications/config': {},
         '/notifications/historial': [],
         '/auth/2fa': { activa: false },
@@ -43,13 +43,13 @@ describe('Webhook de salida en Ajustes', () => {
   });
 
   test('muestra el formulario del webhook y lo guarda con URL y secreto', async () => {
-    api.put.mockResolvedValue({ habilitada: true, url: 'https://hook.ejemplo.com/onetec', secretConfigurado: true, configurado: true });
+    api.put.mockResolvedValue({ habilitada: true, url: 'https://hook.ejemplo.com/onetec', secretConfigurado: true, configurado: true, intentos: 3, retraso: 1000 });
     renderizarAjustes();
     const urlInput = await screen.findByPlaceholderText('https://hooks.ejemplo.com/onetec');
     fireEvent.change(urlInput, { target: { value: 'https://hook.ejemplo.com/onetec' } });
     fireEvent.change(screen.getByPlaceholderText('sin secreto'), { target: { value: 's3cret' } });
     fireEvent.click(screen.getByRole('button', { name: /guardar webhook/i }));
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/webhook/config', { habilitada: false, url: 'https://hook.ejemplo.com/onetec', secret: 's3cret' }));
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/webhook/config', { habilitada: false, url: 'https://hook.ejemplo.com/onetec', secret: 's3cret', intentos: 3, retraso: 1000 }));
   });
 
   test('el botón de prueba despacha /webhook/test cuando el webhook está activo', async () => {

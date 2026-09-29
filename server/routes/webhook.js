@@ -24,7 +24,7 @@ webhookRouter.post('/test', requireAdmin, async (req, res) => {
     return res.status(409).json({ error: 'Webhook no configurado o desactivado' });
   }
   registrarActividad({ usuario: req.user.email, accion: 'webhook_test', detalle: `Prueba a ${conf.url}` });
-  const ok = await enviarWebhook({ evento: 'test', incidencia: null, usuario: req.user.nombre });
+  const ok = await enviarWebhook({ evento: 'test', incidencia: null, usuario: req.user.nombre, intentos: 1 });
   if (!ok) {
     return res.status(502).json({ error: 'No se pudo enviar la prueba al webhook (revise el historial de notificaciones)' });
   }

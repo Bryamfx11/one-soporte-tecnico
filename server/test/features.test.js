@@ -201,15 +201,23 @@ test('GET/PUT /api/webhook/config solo admin y valida la URL', async () => {
   assert.ok(Array.isArray(invalida.body.details));
 
   const ok = await request(app).put('/api/webhook/config').set('Authorization', `Bearer ${adminToken}`)
-    .send({ habilitada: true, url: 'https://hook.test/one', secret: 's3cret' });
+    .send({ habilitada: true, url: 'https://hook.test/one', secret: 's3cret', intentos: 2, retraso: 500 });
   assert.equal(ok.status, 200);
   assert.equal(ok.body.configurado, true);
   assert.equal(ok.body.secretConfigurado, true);
+  assert.equal(ok.body.intentos, 2);
+  assert.equal(ok.body.retraso, 500);
+
+  const invalidaRetraso = await request(app).put('/api/webhook/config').set('Authorization', `Bearer ${adminToken}`)
+    .send({ habilitada: true, url: 'https://hook.test/one', intentos: 0 });
+  assert.equal(invalidaRetraso.status, 400);
 
   const get = await request(app).get('/api/webhook/config').set('Authorization', `Bearer ${adminToken}`);
   assert.equal(get.status, 200);
   assert.equal(get.body.url, 'https://hook.test/one');
   assert.equal(get.body.habilitada, true);
+  assert.equal(get.body.intentos, 2);
+  assert.equal(get.body.retraso, 500);
 
   const auditado = db.prepare("SELECT COUNT(*) AS c FROM actividad WHERE accion = 'webhook_config' AND usuario = 'admin@one.com'").get().c;
   assert.ok(auditado >= 1);
@@ -272,7 +280,7 @@ test('enviarWebhook sin configuración no publica y con destino malo registra er
     globalThis.fetch = original;
   }
 
-  guardarConfigWebhook({ habilitada: true, url: 'https://hook.test/malo' });
+  guardarConfigWebhook({ habilitada: true, url: 'https://hook.test/malo', intentos: 1, retraso: 0 });
   const maloId = insertarIncidencia({ estado: 'nueva' });
   globalThis.fetch = async () => { throw new Error('ECONNREFUSED'); };
   try {
@@ -284,6 +292,51 @@ test('enviarWebhook sin configuración no publica y con destino malo registra er
   const fila = db.prepare("SELECT * FROM notificaciones WHERE tipo = 'webhook' AND destinatario = 'https://hook.test/malo' ORDER BY id DESC LIMIT 1").get();
   assert.equal(fila.estado, 'error');
   assert.match(fila.error, /ECONNREFUSED/);
+});
+
+test('enviarWebhook reintenta tras un fallo y registra cada intento', async () => {
+  guardarConfigWebhook({ habilitada: true, url: 'https://hook.test/flaky', intentos: 3, retraso: 5 });
+  const incId = insertarIncidencia({ estado: 'nueva' });
+  let llamadas = 0;
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => {
+    llamadas++;
+    if (llamadas === 1) throw new Error('ECONNRESET');
+    return { ok: true, status: 200 };
+  };
+  try {
+    const ok = await enviarWebhook({ evento: 'estado_cambiado', incidencia: { id: incId, numero_ticket: 'ONE-0005' } });
+    assert.equal(ok, true);
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.equal(llamadas, 2);
+  const filas = db.prepare("SELECT estado, asunto, error FROM notificaciones WHERE tipo = 'webhook' AND destinatario = 'https://hook.test/flaky' ORDER BY id").all();
+  assert.equal(filas.length, 2);
+  assert.equal(filas[0].estado, 'error');
+  assert.match(filas[0].asunto, /intento 1\/3/);
+  assert.match(filas[0].error, /ECONNRESET/);
+  assert.equal(filas[1].estado, 'enviado');
+  assert.match(filas[1].asunto, /intento 2\/3/);
+});
+
+test('enviarWebhook agota los intentos y registra cada fallo', async () => {
+  guardarConfigWebhook({ habilitada: true, url: 'https://hook.test/abajo', intentos: 3, retraso: 5 });
+  let llamadas = 0;
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => { llamadas++; throw new Error('HTTP 502'); };
+  try {
+    const ok = await enviarWebhook({ evento: 'incidencia_cerrada', incidencia: null });
+    assert.equal(ok, false);
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.equal(llamadas, 3);
+  const filas = db.prepare("SELECT estado, asunto FROM notificaciones WHERE tipo = 'webhook' AND destinatario = 'https://hook.test/abajo' ORDER BY id").all();
+  assert.equal(filas.length, 3);
+  assert.ok(filas.every((f) => f.estado === 'error'));
+  assert.match(filas[0].asunto, /intento 1\/3/);
+  assert.match(filas[2].asunto, /intento 3\/3/);
 });
 
 test('crear incidencia genera notificaciones en la app para usuarios activos', async () => {
